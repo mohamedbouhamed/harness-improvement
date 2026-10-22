@@ -95,6 +95,30 @@ def _prepare_workdir(root: Path, source: str, task: Task, which: str) -> Path:
     return workdir
 
 
+def _module_for(test_rel: str) -> str:
+    if not test_rel.endswith(".py"):
+        raise ValueError(f"test file must be a .py file: {test_rel}")
+    return test_rel[:-3].replace("/", ".")
+
+
+def _prepare_files_dir(root: Path, files: dict[str, str], label: str) -> Path:
+    """Directory holding exactly `files` (relative paths), read-only for everyone."""
+    root.mkdir(parents=True, exist_ok=True)
+    workdir = Path(tempfile.mkdtemp(prefix=f"{label}-", dir=root))
+    for rel, content in files.items():
+        parts = Path(rel).parts
+        if Path(rel).is_absolute() or ".." in parts or not parts:
+            raise ValueError(f"unsafe execution path: {rel!r}")
+        target = workdir.joinpath(*parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    for d, _, names in os.walk(workdir):
+        os.chmod(d, 0o755)
+        for n in names:
+            os.chmod(os.path.join(d, n), stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+    return workdir
+
+
 def _cap(text: str) -> str:
     if len(text) <= OUTPUT_CAP:
         return text
@@ -144,7 +168,7 @@ class DockerRunner:
                 "memory": self.memory, "cpus": self.cpus, "pids_limit": self.pids,
                 "network": "none", "user": "10001:10001", "read_only_rootfs": True,
                 "tmpfs": "/tmp size=16m noexec", "cap_drop": "ALL", "no_new_privileges": True,
-                "mounts": "candidate.py + one test file, read-only"}
+                "mounts": "fresh per-execution copy of the candidate files + one test module, read-only"}
 
     def ensure_ready(self, build: bool = True) -> str:
         ok, detail = docker_status()
@@ -177,11 +201,19 @@ class DockerRunner:
     def run(self, source: str, task: Task, which: str) -> ExecResult:
         workdir = _prepare_workdir(self.work_root, source, task, which)
         expected = count_tests(task.tests_path(which).read_text(encoding="utf-8"))
+        return self._execute(workdir, f"{which}_tests", expected)
+
+    def run_files(self, files: dict[str, str], test_rel: str, label: str = "exec") -> ExecResult:
+        """Run the unittest module `test_rel` over exactly `files` (a fresh read-only mount)."""
+        workdir = _prepare_files_dir(self.work_root, files, label)
+        return self._execute(workdir, _module_for(test_rel), count_tests(files[test_rel]))
+
+    def _execute(self, workdir: Path, module: str, expected: int) -> ExecResult:
         name = f"harness-mvp-{uuid.uuid4().hex[:12]}"
         start = time.perf_counter()
         try:
             # Host-side guard is generous: container start-up is not part of the test timeout.
-            proc = subprocess.run(self.command(workdir, f"{which}_tests", name), capture_output=True,
+            proc = subprocess.run(self.command(workdir, module, name), capture_output=True,
                                   text=True, timeout=self.timeout_s + 60, env=_docker_cli_env())
         except subprocess.TimeoutExpired:
             subprocess.run(["docker", "rm", "-f", name], capture_output=True)
@@ -228,10 +260,20 @@ class TrustedLocalRunner:
             raise PermissionError("TrustedLocalRunner refuses non-allowlisted code; use Docker for model output")
         workdir = _prepare_workdir(self.work_root, source, task, which)
         expected = count_tests(task.tests_path(which).read_text(encoding="utf-8"))
+        return self._execute(workdir, f"{which}_tests", expected)
+
+    def run_files(self, files: dict[str, str], test_rel: str, label: str = "exec") -> ExecResult:
+        bad = sorted(rel for rel, content in files.items() if sha256_text(content) not in self.allowed)
+        if bad:
+            raise PermissionError(f"TrustedLocalRunner refuses non-allowlisted files {bad}; use Docker for model output")
+        workdir = _prepare_files_dir(self.work_root, files, label)
+        return self._execute(workdir, _module_for(test_rel), count_tests(files[test_rel]))
+
+    def _execute(self, workdir: Path, module: str, expected: int) -> ExecResult:
         env = {"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1"}
         start = time.perf_counter()
         try:
-            proc = subprocess.run([sys.executable, "-B", "-m", "unittest", "-v", f"{which}_tests"],
+            proc = subprocess.run([sys.executable, "-B", "-m", "unittest", "-v", module],
                                   cwd=workdir, capture_output=True, text=True,
                                   timeout=self.timeout_s, env=env)
         except subprocess.TimeoutExpired as exc:

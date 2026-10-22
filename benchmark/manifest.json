@@ -1,0 +1,92 @@
+{
+  "benchmark": "tiny-pilot",
+  "version": 1,
+  "note": "Splits and families are fixed. 'principles', 'bug_note', 'mock_scenario' and 'mock_api_error' are maintainer metadata: never shown to the agent, the extractor or retrieval. solution/ and mock/ are used only for validation and the mock backend; hidden/ is never copied into an agent workspace.",
+  "tasks": [
+    {
+      "id": "cal_textstats",
+      "split": "calibration",
+      "family": "textstats",
+      "title": "Word counts per window of words",
+      "statement": "`textstats.stats.window_counts(text, size)` splits `text` into words and returns, for each consecutive window of `size` words, a dict mapping each word to its count in that window. A word is a maximal run of ASCII letters and apostrophes; words are compared case-insensitively and reported in lower case. The last window may hold fewer than `size` words; empty text gives an empty list; `size < 1` raises ValueError. The helpers `textstats.tokenize.words` and `textstats.tokenize.chunks` must behave as their docstrings state.",
+      "allowed_files": ["textstats/tokenize.py", "textstats/stats.py"],
+      "public_tests": "tests/test_public.py",
+      "principles": ["boundary"],
+      "bug_note": "words() does not lower-case; chunks() range stop drops the final partial chunk.",
+      "mock_scenario": "fix"
+    },
+    {
+      "id": "ms_booking",
+      "split": "memory_source",
+      "family": "booking",
+      "title": "First free meeting slot",
+      "statement": "Times are integer minutes. A booking is a half-open interval (start, end) occupying every minute t with start <= t < end, so a booking ending at 600 does not conflict with one starting at 600. `booking.calendar.first_free_slot(bookings, day_start, day_end, duration, step=15)` returns the earliest start of the form day_start + k*step such that the slot [start, start + duration) lies within [day_start, day_end) and overlaps no booking, or None if there is none. `booking.calendar.is_free` and `booking.intervals.overlaps` use the same half-open convention.",
+      "allowed_files": ["booking/intervals.py", "booking/calendar.py"],
+      "public_tests": "tests/test_public.py",
+      "principles": ["boundary"],
+      "bug_note": "overlaps() treats touching intervals as overlapping; first_free_slot() range stop excludes the last start that fits.",
+      "mock_scenario": "partial"
+    },
+    {
+      "id": "ms_leaderboard",
+      "split": "memory_source",
+      "family": "leaderboard",
+      "title": "Leaderboard with tie-breaking",
+      "statement": "Scoring events are (player, points, time) tuples in any order. `leaderboard.scores.totals(events)` maps each player to (total_points, time_reached), where time_reached is the largest time among that player's events. `leaderboard.ranking.ranking(events)` returns player names ordered by total points (higher first); players with equal totals are ordered by time_reached (earlier first), then by name (ascending).",
+      "allowed_files": ["leaderboard/scores.py", "leaderboard/ranking.py"],
+      "public_tests": "tests/test_public.py",
+      "principles": ["tie-ordering"],
+      "bug_note": "totals() keeps the first event's time instead of the latest; ranking() ignores time_reached.",
+      "mock_scenario": "fix"
+    },
+    {
+      "id": "dev_inventory",
+      "split": "development",
+      "family": "inventory",
+      "title": "All-or-nothing stock reservation",
+      "statement": "`inventory.stock.Stock(quantities)` tracks units on hand per SKU. `reserve(sku, qty)` reserves qty > 0 units and raises ValueError if fewer than qty units are available (reserving exactly the available amount is allowed); `release(sku, qty)` returns reserved units; `available(sku)` is on-hand minus reserved (0 for unknown SKUs). `inventory.orders.OrderBook(stock).place(order_id, lines)` reserves every (sku, qty) line of an order: if any line cannot be reserved, nothing remains reserved for that order, the order is not recorded and ValueError is raised; a duplicate order_id raises ValueError. `cancel(order_id)` releases the order's stock and raises KeyError for unknown orders.",
+      "allowed_files": ["inventory/stock.py", "inventory/orders.py"],
+      "public_tests": "tests/test_public.py",
+      "principles": ["boundary", "state-propagation"],
+      "bug_note": "reserve() rejects reserving exactly the available amount; place() leaves earlier lines reserved when a later line fails.",
+      "mock_scenario": "fix"
+    },
+    {
+      "id": "test_rate_window",
+      "split": "test",
+      "family": "ratelimit",
+      "title": "Sliding-window rate limiter",
+      "statement": "`ratelimit.window.count_in_window(timestamps, now, size)` counts timestamps t with now - size < t <= now: the window of length `size` ends at `now` (inclusive) and excludes its start. `ratelimit.limiter.RateLimiter(limit, size).allow(now)` accepts a request at time `now` if fewer than `limit` previously accepted requests fall in the window ending at `now`; accepted requests are recorded, rejected ones are not. Calls arrive with non-decreasing `now`.",
+      "allowed_files": ["ratelimit/window.py", "ratelimit/limiter.py"],
+      "public_tests": "tests/test_public.py",
+      "principles": ["boundary"],
+      "bug_note": "count_in_window() includes the window start; allow() compares with > instead of >=.",
+      "mock_scenario": "memory_helps",
+      "mock_api_error": {"condition": "static_guidance", "repetition": 1}
+    },
+    {
+      "id": "test_standings",
+      "split": "test",
+      "family": "league",
+      "title": "League table ordering",
+      "statement": "Matches are (home, away, home_goals, away_goals). `league.matches.results(matches)` maps each team to {\"points\", \"scored\", \"conceded\"}: a win gives 3 points, a draw 1 point to each team, a loss 0; scored and conceded count goals for and against the team. `league.table.standings(matches)` returns team names ordered by points (higher first), then goal difference scored - conceded (higher first), then goals scored (higher first), then name (ascending).",
+      "allowed_files": ["league/matches.py", "league/table.py"],
+      "public_tests": "tests/test_public.py",
+      "principles": ["tie-ordering"],
+      "bug_note": "results() adds the away team's own goals to its conceded total; standings() skips goal difference.",
+      "mock_scenario": "regression_fallback"
+    },
+    {
+      "id": "test_config_merge",
+      "split": "test",
+      "family": "settings",
+      "title": "Recursive configuration merge",
+      "statement": "`settings.merge.deep_merge(base, override)` returns a new dict holding the keys of both: where both values are dicts they are merged recursively, otherwise the override value wins. Neither input is modified, and the result shares no dicts or lists with either input. `settings.loader.load(*overrides)` applies the overrides in order on top of `DEFAULTS`; neither load nor later changes to its result may modify `DEFAULTS`.",
+      "allowed_files": ["settings/merge.py", "settings/loader.py"],
+      "public_tests": "tests/test_public.py",
+      "principles": ["aliasing"],
+      "bug_note": "deep_merge() mutates and returns base itself; load() returns DEFAULTS itself when there are no overrides.",
+      "mock_scenario": "fail"
+    }
+  ]
+}
