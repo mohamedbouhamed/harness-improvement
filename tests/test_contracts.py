@@ -50,6 +50,13 @@ class LessonContractTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(flags)
 
+    def test_plain_words_matching_module_names_are_not_flagged(self):
+        self.assertEqual(validate_lesson(GOOD_LESSON | {"scope": "sorting and ranking of intervals"},
+                                         task_terms={"ranking", "intervals"})[1], [])
+        flags = validate_lesson(GOOD_LESSON | {"lesson": "Check how `ranking()` breaks ties before editing it."},
+                                task_terms={"ranking"})[1]
+        self.assertTrue(flags)
+
     def test_memory_id_is_content_derived(self):
         self.assertEqual(memory_id_for("A  b", "C"), memory_id_for("a b", "c"))
         self.assertNotEqual(memory_id_for("a", "b"), memory_id_for("a", "c"))

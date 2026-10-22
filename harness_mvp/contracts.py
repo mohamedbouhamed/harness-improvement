@@ -128,14 +128,25 @@ def validate_lesson(obj, task_terms: set[str] = frozenset(), source_lines: set[s
     text = " ".join(obj[k] for k in LESSON_LIMITS)
     if "```" in text or re.search(r"^\s*(def|class|import|return)\s", text, re.MULTILINE):
         errors.append("contains code")
-    words = {w.lower() for w in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", text)}
-    named = sorted(t for t in task_terms if t.lower() in words)
+    named = sorted(t for t in task_terms if _names_identifier(text, t))
     if named:
         flags.append(f"names task-specific identifiers: {named}")
     copied = [l for l in source_lines if len(l) >= 20 and l in text]
     if copied:
         flags.append("copies source lines")
     return errors, flags
+
+
+def _names_identifier(text: str, term: str) -> bool:
+    """True if `term` appears as a word that is clearly an identifier: snake_case or CamelCase,
+    or written in code form (`term`, term(, .term). Plain English words such as a module named
+    "intervals" are allowed in prose; this heuristic can miss task-specific content."""
+    word = re.search(rf"(?<![A-Za-z0-9_]){re.escape(term)}(?![A-Za-z0-9_])", text, re.IGNORECASE)
+    if not word:
+        return False
+    if "_" in term or re.search(r"[a-z][A-Z]|^[A-Z][a-z]+[A-Z]", term):
+        return True
+    return bool(re.search(rf"`[^`]*\b{re.escape(term)}\b[^`]*`|\b{re.escape(term)}\(|\.{re.escape(term)}\b", text))
 
 
 def memory_id_for(trigger: str, lesson: str) -> str:
