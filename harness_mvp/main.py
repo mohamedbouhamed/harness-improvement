@@ -556,6 +556,9 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("run_dir")
     rp.set_defaults(func=cmd_report)
 
+    from .experiment import register
+    register(sub)
+
     b = sub.add_parser("build-image", help="build the Docker runner image")
     b.add_argument("--image", default=DEFAULT_IMAGE)
     b.set_defaults(func=cmd_build_image)

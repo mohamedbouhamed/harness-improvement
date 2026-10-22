@@ -227,7 +227,9 @@ def build_bank(candidates: list[dict], created_at: str) -> dict:
     counts = {s: sum(1 for c in candidates if c["status"] == s) for s in ("accepted", "flagged", "rejected")}
     return {"protocol_version": PROTOCOL_VERSION, "created_at": created_at, "memories": memories,
             "candidate_counts": counts, "synthetic": any(m["provenance"]["synthetic"] for m in memories),
-            "bank_hash": canonical_hash(memories)}
+            "bank_hash": canonical_hash(memories),  # identifies this exact artifact (incl. provenance times)
+            "content_hash": canonical_hash([{k: m[k] for k in ("memory_id", "trigger", "lesson", "scope",
+                                                                "evidence_episode_ids")} for m in memories])}
 
 
 def write_bank(path: Path, bank: dict) -> None:
