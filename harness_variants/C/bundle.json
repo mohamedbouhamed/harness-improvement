@@ -1,0 +1,17 @@
+{
+  "name": "C",
+  "effective_sha256": {
+    "instructions.md": "54bd6053e6c582bc8c3ee08295d9e512e7c0543b9b500ceac1093041ecf2111b",
+    "verification.md": "d210961aae99dc76eb545ba870f14a2446fe930fab2c81b59c9fdc3fe4cd9898"
+  },
+  "provenance": {
+    "origin": "tag harness-v1 instructions + human-edited copy of harness-v1 harness/verification.md",
+    "kind": "HUMAN-EDITED experimental variant, not automatically generated",
+    "edits": [
+      "removed the first line 'Your findings are not final yet. Verification step:' (duplicates the fixed template header)",
+      "replaced item 3 'On fixed or patched versions, double-check whether the code already correctly neutralizes the input.' with a task-neutral check of whether the validation, escaping or authorization actually applied on the path blocks the problem"
+    ],
+    "accepted_artifact_effective_sha256": "df307b23fde577d8f7c55a9b98d7660840aeef1eee72af0c413697ea0bedb705",
+    "edited_by": "experimenter (assistant), at the user's request"
+  }
+}

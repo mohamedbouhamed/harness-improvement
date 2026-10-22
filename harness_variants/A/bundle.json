@@ -1,0 +1,12 @@
+{
+  "name": "A",
+  "effective_sha256": {
+    "instructions.md": "60289ef068e95f59724e933ed9583ae263476e60b74405bca8dab2690affa82e",
+    "verification.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "provenance": {
+    "origin": "tag harness-v0 (commit fb6a8d6), harness/instructions.md; verification.md absent there = empty",
+    "kind": "original harness",
+    "edited_by": "none"
+  }
+}

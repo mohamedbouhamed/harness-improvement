@@ -1,0 +1,12 @@
+{
+  "name": "B",
+  "effective_sha256": {
+    "instructions.md": "54bd6053e6c582bc8c3ee08295d9e512e7c0543b9b500ceac1093041ecf2111b",
+    "verification.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "provenance": {
+    "origin": "tag harness-v1 (commit 0bf7279), harness/instructions.md only; verification disabled (empty)",
+    "kind": "accepted iteration-2 instructions without verification (ablation)",
+    "edited_by": "none"
+  }
+}

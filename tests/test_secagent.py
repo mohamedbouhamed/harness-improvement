@@ -70,6 +70,25 @@ class ScorerV2(unittest.TestCase):
         self.assertEqual((s["path_recall"], s["path_precision"]), (1.0, 0.6))
 
 
+class Variants(unittest.TestCase):
+    def test_bundles_match_tags_and_refuse_tampering(self):
+        import shutil, subprocess, tempfile
+        from secagent.variants import VARIANTS_DIR, load_variant
+        tag = lambda t, f: subprocess.run(["git", "show", f"{t}:{f}"], capture_output=True, text=True).stdout.strip()
+        a, b, c = (load_variant(n) for n in "ABC")
+        self.assertEqual(a["instructions"], tag("harness-v0", "harness/instructions.md"))
+        self.assertEqual((a["verification"], b["verification"]), ("", ""))
+        self.assertEqual(b["instructions"], tag("harness-v1", "harness/instructions.md"))
+        self.assertEqual(c["instructions"], b["instructions"])
+        for word in ("patched", "fixed", "twin", "benchmark"):
+            self.assertNotIn(word, (c["instructions"] + c["verification"]).lower())
+        tmp = Path(tempfile.mkdtemp())
+        shutil.copytree(VARIANTS_DIR / "C", tmp / "C")
+        (tmp / "C" / "verification.md").write_text("changed")
+        with self.assertRaises(ValueError):
+            load_variant("C", tmp)
+
+
 class NoLeakage(unittest.TestCase):
     def test_agent_prompt_has_no_task_metadata(self):
         for t in TASKS.values():
