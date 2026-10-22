@@ -41,7 +41,7 @@ def _call(model, messages, budget: CallBudget, context: dict) -> tuple[object, d
     return resp, {"ok": True, "error_category": None, "error": None,
                   "input_tokens": resp.input_tokens, "output_tokens": resp.output_tokens,
                   "total_tokens": resp.total_tokens, "latency_s": round(resp.latency_s, 3),
-                  "finish_reason": resp.finish_reason}
+                  "finish_reason": resp.finish_reason, "native_tool_calls": getattr(resp, "native_tool_calls", 0)}
 
 
 def request(model, messages, budget: CallBudget, context: dict, *, api_retries: int, retry_wait_s: float,

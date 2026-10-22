@@ -50,6 +50,7 @@ class ModelResponse:
     latency_s: float
     finish_reason: str | None = None
     model: str | None = None
+    native_tool_calls: int = 0  # function calls returned by the API, converted into `text`
 
 
 class CallBudget:
@@ -165,6 +166,8 @@ class OpenAICompatibleModel:
         payload: dict = {"model": s.model, "messages": messages, s.max_tokens_param: s.max_tokens}
         if s.temperature is not None:
             payload["temperature"] = s.temperature
+        if context and context.get("tools"):
+            payload["tools"] = context["tools"]  # OpenAI-format function declarations
         request = urllib.request.Request(
             f"{s.base_url}/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
@@ -189,6 +192,7 @@ class OpenAICompatibleModel:
             data = json.loads(body)
             choice = data["choices"][0]
             text = choice["message"].get("content") or ""
+            native = native_calls_as_actions(choice["message"].get("tool_calls"))
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise APIError(f"unexpected response shape: {type(exc).__name__}") from None
         usage = data.get("usage") or {}
@@ -196,7 +200,34 @@ class OpenAICompatibleModel:
         total = usage.get("total_tokens")
         if total is None and inp is not None and out is not None:
             total = inp + out
-        return ModelResponse(text, inp, out, total, latency, choice.get("finish_reason"), data.get("model"))
+        if native is not None:
+            text, n_native = native
+        else:
+            n_native = 0
+        return ModelResponse(text, inp, out, total, latency, choice.get("finish_reason"), data.get("model"), n_native)
+
+
+def native_calls_as_actions(tool_calls) -> tuple[str, int] | None:
+    """Convert OpenAI-format function calls into the agent's text action format.
+
+    Returns (JSON text, number of calls), or None if there are no calls. Arguments that are not
+    valid JSON objects are passed through as {"_raw_arguments": ...} so the parser reports them.
+    """
+    if not tool_calls:
+        return None
+    actions = []
+    for call in tool_calls:
+        fn = (call or {}).get("function") or {}
+        args = fn.get("arguments") or {}
+        if isinstance(args, str):
+            try:
+                args = json.loads(args) if args.strip() else {}
+            except ValueError:
+                args = {"_raw_arguments": args[:500]}
+        if not isinstance(args, dict):
+            args = {"_raw_arguments": str(args)[:500]}
+        actions.append({"action": fn.get("name"), **args})
+    return json.dumps({"actions": actions}), len(actions)
 
 
 _RETRY_HINTS = (re.compile(r'"retryDelay"\s*:\s*"([\d.]+)s"'), re.compile(r"retry in ([\d.]+)\s*s", re.I))

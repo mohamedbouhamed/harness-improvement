@@ -1,6 +1,6 @@
 # Protocol: memory-guided repository repair
 
-Protocol version: `memory-v2`. The protocol was first written before any experiment ran
+Protocol version: `memory-v3`. The protocol was first written before any experiment ran
 (`memory-v1`); every later change is listed in the [change log](#change-log). Changing anything
 listed under [Frozen before held-out evaluation](#frozen-before-held-out-evaluation) requires a
 new protocol version and a decision about the held-out benchmark, recorded in the change log.
@@ -184,6 +184,26 @@ interacting source files with cross-function bugs. The dataset will be expanded 
 complete pipeline works.
 
 ## Change log
+
+### memory-v3 (after the first memory-v2 build-memory attempt, `runs/study-pilot2`)
+
+memory-v2 never reached an evaluation. Its first live memory-source episode still received an empty
+reply with `finish_reason` `function_call_filter: MALFORMED_FUNCTION_CALL`. That happened on turn 2,
+after the first action results. So renaming the JSON keys was not enough: the model itself chooses
+to emit a native function call, and with no functions declared the endpoint rejects it.
+
+Changes:
+
+- Every agent request now declares the seven actions as OpenAI-format functions (the `tools`
+  field), generated from the same specification as the text protocol.
+- A native function call returned by the API is converted by the adapter into the same text
+  action format. The parser and every bound apply unchanged, and the number of native calls is
+  recorded per request.
+- The JSON text reply remains valid, and the system prompt allows either form.
+- The extractor's requests declare no functions.
+
+Conditions, limits, retrieval, tasks and scoring are unchanged. The open decision about the
+held-out tasks (below) still applies.
 
 ### memory-v2 (after live pilot 1, `runs/study-pilot`)
 

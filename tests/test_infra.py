@@ -91,6 +91,10 @@ class AdapterTests(unittest.TestCase):
                     "ok": (200, {"choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
                                  "usage": {"prompt_tokens": 3, "completion_tokens": 2}}, {}),
                     "nousage": (200, {"choices": [{"message": {"content": "hi"}}]}, {}),
+                    "native": (200, {"choices": [{"message": {"content": None, "tool_calls": [
+                        {"id": "c1", "type": "function",
+                         "function": {"name": "read_file", "arguments": "{\"path\": \"a.py\"}"}}]},
+                        "finish_reason": "tool_calls"}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}, {}),
                     "auth": (401, {"error": {"message": "bad key"}}, {}),
                     "gemini-auth": (400, [{"error": {"message": "API key not valid."}}], {}),
                     "quota": (429, [{"error": {"message": "quota. Please retry in 37.5s."}}], {}),
@@ -113,6 +117,15 @@ class AdapterTests(unittest.TestCase):
     def model(self, name):
         return OpenAICompatibleModel(ModelSettings(f"http://127.0.0.1:{self.server.server_port}/v1", name,
                                                    "sk-test", 0.0, 64))
+
+    def test_native_function_calls_round_trip(self):
+        from harness_mvp.tools import function_declarations, parse_tool_calls
+        r = self.model("native").complete([{"role": "user", "content": "x"}], context={"tools": function_declarations()})
+        self.assertEqual(self.seen[0]["tools"], function_declarations())  # declarations were sent
+        self.assertEqual(r.native_tool_calls, 1)
+        self.assertEqual(parse_tool_calls(r.text, 4)[0], [{"name": "read_file", "args": {"path": "a.py"}}])
+        self.model("ok").complete([{"role": "user", "content": "x"}])
+        self.assertNotIn("tools", self.seen[0])  # only sent when the caller asks (agent turns)
 
     def test_success_and_usage(self):
         r = self.model("ok").complete([{"role": "user", "content": "x"}])

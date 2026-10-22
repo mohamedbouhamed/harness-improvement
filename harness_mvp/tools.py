@@ -41,6 +41,23 @@ def tool_help() -> str:
     return "\n".join(lines)
 
 
+def function_declarations() -> list[dict]:
+    """The same actions as OpenAI-format function declarations (sent with every agent request).
+
+    Gemini's OpenAI-compatible endpoint lets the model emit native function calls even when the
+    prompt asks for JSON text; without declarations they fail as MALFORMED_FUNCTION_CALL with an
+    empty reply (seen in pilot 1 and in the first memory-v2 attempt). Declaring them lets both
+    forms work; native calls are converted back to the text action format by the adapter.
+    """
+    out = []
+    for name, (args, desc) in TOOL_SPECS.items():
+        props = {k: {"type": "string"} for k in args}
+        out.append({"type": "function", "function": {
+            "name": name, "description": desc,
+            "parameters": {"type": "object", "properties": props, "required": list(args)}}})
+    return out
+
+
 _FENCE = re.compile(r"```(?:json)?\s*\n(.*?)```", re.DOTALL)
 
 

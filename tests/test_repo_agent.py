@@ -142,22 +142,39 @@ class ToolParsingTests(unittest.TestCase):
         for text in ("", '{"actions": [{"action": "read_file"}]}', "not json"):
             self.assertIn('"actions"', parse_tool_calls(text, 4)[1])
 
-    def test_system_prompt_avoids_native_function_calling_words(self):
-        from harness_mvp.contracts import AgentLimits
-        from harness_mvp.repo_agent import system_prompt
-        text = system_prompt(AgentLimits()).lower()
-        self.assertNotIn("tool_calls", text)
-        self.assertNotIn("function", text)
+    def test_function_declarations_match_actions(self):
+        from harness_mvp.tools import TOOL_SPECS, function_declarations
+        decl = {d["function"]["name"]: d["function"]["parameters"] for d in function_declarations()}
+        self.assertEqual(set(decl), set(TOOL_SPECS))
+        self.assertEqual(decl["replace_in_file"]["required"], ["path", "old", "new"])
 
-    def test_rejected_forms(self):
-        for text in ("no json here", '{"name": "rm_rf"}', '{"name": "read_file", "args": {}}',
-                     calls(("submit", {}), ("list_files", {})), calls(*[("list_files", {})] * 5)):
-            calls_, err = parse_tool_calls(text, 4)
-            self.assertIsNone(calls_)
-            self.assertTrue(err)
-
+    def test_native_function_calls_become_parseable_actions(self):
+        from harness_mvp.model import native_calls_as_actions
+        native = [{"type": "function", "function": {"name": "read_file", "arguments": '{"path": "a.py"}'}},
+                  {"type": "function", "function": {"name": "run_public_tests", "arguments": "{}"}}]
+        text, n = native_calls_as_actions(native)
+        self.assertEqual(n, 2)
+        self.assertEqual(parse_tool_calls(text, 4)[0], [{"name": "read_file", "args": {"path": "a.py"}},
+                                                        {"name": "run_public_tests", "args": {}}])
+        self.assertIsNone(native_calls_as_actions(None))
+        bad, _ = native_calls_as_actions([{"function": {"name": "read_file", "arguments": "{not json"}}])
+        self.assertIsNone(parse_tool_calls(bad, 4)[0])  # reported to the model as an invalid action
 
 class EpisodeTests(unittest.TestCase):
+    def test_every_agent_turn_declares_the_functions(self):
+        seen = []
+
+        class Spy:
+            synthetic = True
+
+            def complete(self, messages, context=None):
+                seen.append(context.get("tools"))
+                from harness_mvp.model import ModelResponse
+                return ModelResponse(calls(("submit", {})), 1, 1, 2, 0.0)
+
+        episode(Spy(), SpyRunner())
+        self.assertTrue(seen and all(t and {d["function"]["name"] for d in t} >= {"read_file", "submit"} for t in seen))
+
     def test_fallback_to_latest_public_passing_candidate(self):
         model = ScriptedModel([calls(write(GOOD_MARK), ("run_public_tests", {})),
                                calls(write(BAD_MARK), ("submit", {}))])

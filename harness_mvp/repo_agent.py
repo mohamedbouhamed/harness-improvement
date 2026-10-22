@@ -13,12 +13,12 @@ from . import llm
 from .benchmark import RepoTask
 from .contracts import GUIDANCE_HEADING, AgentLimits, estimate_tokens
 from .model import CallBudget
-from .tools import EXAMPLE_REPLY, ToolExecutor, cap, parse_tool_calls, tool_help
+from .tools import EXAMPLE_REPLY, ToolExecutor, cap, function_declarations, parse_tool_calls, tool_help
 from .workspace import Workspace, candidate_hash, execution_files
 
 SYSTEM_TEMPLATE = """You are a careful software engineer repairing bugs in a small Python repository. You act only by requesting actions.
 
-Reply with exactly one JSON object and nothing else, for example:
+Request actions by calling the provided functions, or by replying with exactly one JSON object and nothing else, for example:
 {example}
 Up to {per_turn} actions per reply run in order; their results come back in the next message.
 
@@ -85,7 +85,8 @@ def run_episode(task: RepoTask, model, runner, budget: CallBudget, workspace_roo
 
     for turn_no in range(1, limits.max_model_calls + 1):
         context = {"task_id": task.task_id, "turn": turn_no, "condition": condition, "repetition": repetition,
-                   "guidance_memory_ids": guidance.get("memory_ids", []), "guidance_text": guidance_text}
+                   "guidance_memory_ids": guidance.get("memory_ids", []), "guidance_text": guidance_text,
+                   "tools": function_declarations()}
         resp, requests, fatal, waited = llm.request(model, messages, budget, context, api_retries=api_retries,
                                                     retry_wait_s=retry_wait_s, log=log, label=f"turn {turn_no}")
         backoff += waited
