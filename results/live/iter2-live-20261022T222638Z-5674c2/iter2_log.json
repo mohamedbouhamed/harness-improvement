@@ -1,0 +1,20 @@
+{
+  "mode": "live",
+  "start_commit": "17c03d6",
+  "original_hashes": {
+    "harness/instructions.md": "63aae5104e830009c6dbde2b010722000846013d306e6709086a2f6ce58ec727",
+    "harness/verification.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "budget": {
+    "bound_so_far": 4.2946,
+    "allowance": 0.7054,
+    "proposer_worst": 0.0389,
+    "tier_worst": {
+      "A": 3.367,
+      "B": 2.327,
+      "C": 1.495,
+      "D": 0.871
+    },
+    "tier": null
+  }
+}

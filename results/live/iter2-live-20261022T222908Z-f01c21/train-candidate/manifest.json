@@ -1,0 +1,77 @@
+{
+  "created_at": "2026-10-22T22:30:01+00:00",
+  "seed": 22,
+  "synthetic": false,
+  "tasks": [
+    "cal_docshare",
+    "cal_miniwiki",
+    "cal_teamnotes",
+    "cal_mediakit"
+  ],
+  "conditions": [
+    "candidate"
+  ],
+  "reps": 1,
+  "limits": {
+    "max_model_calls": 8,
+    "max_tool_calls": 30,
+    "max_actions_per_turn": 6,
+    "read_chars": 9000,
+    "tool_result_chars": 9000,
+    "search_max_matches": 40,
+    "max_findings": 10
+  },
+  "instructions_sha256": "54bd6053e6c582bc8c3ee08295d9e512e7c0543b9b500ceac1093041ecf2111b",
+  "verification_sha256": "df307b23fde577d8f7c55a9b98d7660840aeef1eee72af0c413697ea0bedb705",
+  "guidance_sha256": {
+    "candidate": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "task_hashes": {
+    "cal_docshare": {
+      "vulnerable": "6ee273cd77cd7ad2e639cf66ae85cdbaf9a4459110dfcab8c87db3cc86a20e01",
+      "patched": "18cc263bd384c1397271a80a0b18deeae3e046d2ea18f80e5db18f87c1b7edad",
+      "answer": "f21ab9ea3c8ca5044520f9118920ab3ee35c86e704f742733428a06bda0b6307",
+      "witness": "5a0b8a02e91c4228429cf5c25067e835e7ca276092b93b5f63a8835f67e73fc1"
+    },
+    "cal_miniwiki": {
+      "vulnerable": "e6c53f6ddd46cd80eba86f05db99962accf442a165d7aa72ab86a627a75fd9f1",
+      "patched": "3d731c298234621b9e4d36bf650a04fa09ddae6f517c4982356d3b1ee7b82147",
+      "answer": "9df2b75a863563d46219967f19892c534b32cf5e9d25145ce23c899f95bd4382",
+      "witness": "f286149c8da96b1df63b9433d5c07a00e53e3a6d12131e5dc432f54918189e07"
+    },
+    "cal_teamnotes": {
+      "vulnerable": "e2a45c0c6012b452453a1b8f307c2317a419e0e191c69cab72157d6044baddea",
+      "patched": "5461599adffa4b0bb270e8f39c215b26f417e8803b7d30f0b4cd7c242a0a5377",
+      "answer": "34f6e7c78bc81422a14b43a888343fbe07cab304e8ca44a2ff6845688dcde8b6",
+      "witness": "7cb3664e7020a9a35e92e04b1138801fd5f4bc9d6bcd7d45464d10e9b0ad8729"
+    },
+    "cal_mediakit": {
+      "vulnerable": "66bca228cacf13a279233e4ce11b34b8a8ff6b04c77c68a6ce9a20c49c8b02c9",
+      "patched": "ece215e3fee198a77e2234d8fdab3ea9f57bbdb272ea463b5e968059c73b9de4",
+      "answer": "3cfc4dcc87e711191017beae5f9f433f81539ff1ab2815501e9ef7f271e5507f",
+      "witness": "c1e3d2d69d8f45c211fc7c27da49a7310ddff4fd6ba4e40a0726e68ee3770ea1"
+    }
+  },
+  "episodes_planned": 8,
+  "model": {
+    "backend": "openai-compatible",
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "model": "gemini-3.5-flash-lite",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "max_tokens_param": "max_tokens",
+    "request_timeout_s": 180.0,
+    "reasoning_effort": null,
+    "price_usd_per_m": [
+      0.3,
+      2.5
+    ],
+    "price_source": "https://ai.google.dev/gemini-api/docs/pricing (paid tier, standard, text input; output price includes thinking tokens)",
+    "price_retrieved": "2026-10-22 (page 'Last updated 2026-10-22 UTC')",
+    "cap_eur": 6.63,
+    "usd_to_eur": 1.0
+  },
+  "max_model_calls": 400,
+  "episodes_completed": 8,
+  "records_sha256": "6c2d62806d9a6a01195e6fe1e0e6b93b7821958245b57d1e5ffc7c3ee477669b"
+}

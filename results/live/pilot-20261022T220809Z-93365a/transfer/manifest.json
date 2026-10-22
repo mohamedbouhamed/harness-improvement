@@ -1,0 +1,62 @@
+{
+  "created_at": "2026-10-22T22:09:22+00:00",
+  "seed": 12,
+  "synthetic": false,
+  "tasks": [
+    "cal_invoicer",
+    "cal_pricer"
+  ],
+  "conditions": [
+    "proposed"
+  ],
+  "reps": 1,
+  "limits": {
+    "max_model_calls": 8,
+    "max_tool_calls": 30,
+    "max_actions_per_turn": 6,
+    "read_chars": 9000,
+    "tool_result_chars": 9000,
+    "search_max_matches": 40,
+    "max_findings": 10
+  },
+  "instructions_sha256": "6eba96eb6777cabd43a5fcd77610b15f2b24e6af53b1e6fd1b23fbbca8305ef8",
+  "guidance_sha256": {
+    "proposed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "task_hashes": {
+    "cal_invoicer": {
+      "vulnerable": "7c4f394822333d0daad78a12aa19cac6ba434dc68e556196615502275f7f593e",
+      "patched": "dd1e9e09e58e10f3935c5cde6db89090e9129dde2e5f32d9b0e8ef8c024d0f97",
+      "answer": "5cf96ac5aee5572a69c93bb9ea08bf3816ad529c2f739b58ef556056c1d2241d",
+      "witness": "cbc954da15623752b673acb1911d6b24339ce031d1a901c98118718ab0ebbcbb"
+    },
+    "cal_pricer": {
+      "vulnerable": "344f9ac119f9c852df4c957c3d9cd24017795953311a280e24d202ee67e3ad4c",
+      "patched": "8be3ef6f90edd33b2487c5dd0c35bf4770a48b9eb6984fb159506052182e754e",
+      "answer": "4ca72a0ce079dc581d93d74c03f8bf29ffc6117be0619a50f0df3dddd3885d5a",
+      "witness": "45e0cfc71211847bc579bc977cafe7afe736fb6625eaa4ff4819c456557c47b1"
+    }
+  },
+  "episodes_planned": 4,
+  "model": {
+    "backend": "openai-compatible",
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "model": "gemini-3.5-flash-lite",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "max_tokens_param": "max_tokens",
+    "request_timeout_s": 180.0,
+    "reasoning_effort": null,
+    "price_usd_per_m": [
+      0.3,
+      2.5
+    ],
+    "price_source": "https://ai.google.dev/gemini-api/docs/pricing (paid tier, standard, text input; output price includes thinking tokens)",
+    "price_retrieved": "2026-10-22 (page 'Last updated 2026-10-22 UTC')",
+    "cap_eur": 4.95,
+    "usd_to_eur": 1.0
+  },
+  "max_model_calls": 200,
+  "episodes_completed": 4,
+  "records_sha256": "68bcdc8211d8f409ed22e1c1948bca13d92cda94e198848373a73dd4b3775d62"
+}

@@ -1,0 +1,183 @@
+{
+  "mode": "live",
+  "start_commit": "ecc644f",
+  "original_hashes": {
+    "harness/instructions.md": "63aae5104e830009c6dbde2b010722000846013d306e6709086a2f6ce58ec727",
+    "harness/verification.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "budget": {
+    "guard_eur": 6.63,
+    "requested_tier": "B",
+    "bound_so_far": 4.2946,
+    "allowance": 2.3354,
+    "proposer_worst": 0.0389,
+    "tier_worst": {
+      "A": 3.367,
+      "B": 2.327,
+      "C": 1.495,
+      "D": 0.871
+    },
+    "tier": "B"
+  },
+  "baseline_kind": "fresh",
+  "proposer": {
+    "prompt": "You improve the harness of a security-review agent. The agent reads a small Python repository with read-only tools (list_files, read_file, search) and finishes with submit_findings. It is scored on two things per program pair: reporting the planted weakness in the vulnerable version, and reporting nothing for the fixed version (its twin). A pair is solved only if both hold.\n\n## The harness you may change\n- harness/instructions.md: the reviewer instructions placed at the start of the system prompt.\n- harness/verification.md: an optional verification step, empty in the original harness. If it is non-empty, the agent's first submit_findings becomes a draft: the agent receives this message\n---\nYour findings are not final yet. Verification step:\n<text of harness/verification.md>\n\nYour draft findings (N):\n<draft findings>\n\nYou may use the read-only tools again within your remaining limits. Then call submit_findings with your final list.\n---\nand its next submit_findings is final. The step shares the same limits as everything else (8 replies, 30 actions per episode); if the limits run out after a draft, the draft counts.\nNothing else can change: not the tools, the limits, the model, the tasks or the scoring.\n\n## Original harness (the starting point for your change)\n### harness/instructions.md\nYou are a security reviewer auditing a small Python repository for vulnerabilities that an attacker could exploit through the inputs described in its README.\n\nHow to work:\n- Read the README first to learn which inputs are untrusted, then read the code that handles them.\n- Follow untrusted data across functions and files to the operation where it is used.\n- The repository may contain no vulnerability at all. Report only weaknesses with a concrete path from an untrusted input to a sensitive operation; do not report style issues, missing hardening, or risky calls that only receive trusted data.\n- If you find nothing exploitable, submit an empty list of findings.\n### harness/verification.md\n(empty)\n\n## A previous attempt, which was rejected\nIt added this line to instructions.md:\n- Carefully verify all security-critical assumptions and sanitization routines: check whether prefix checks, string containment checks, escaping functions (e.g., handling of quotes or special characters), or character blocklists can be bypassed or fail to fully neutralize malicious input.\nIts stated pattern: The agent fails to notice subtle input sanitization bypasses or encoding assumptions in security checks, such as incomplete path containment checks or unescaped HTML attributes.\nTraining results, original harness vs the previous attempt (one pair per line):\n- docshare: original: detected=False, twin findings=0, solved=False | previous attempt: detected=False, twin findings=0, solved=False\n- mediakit: original: detected=True, twin findings=0, solved=True | previous attempt: detected=True, twin findings=1, solved=False\n- miniwiki: original: detected=False, twin findings=0, solved=False | previous attempt: detected=False, twin findings=1, solved=False\n- teamnotes: original: detected=True, twin findings=0, solved=True | previous attempt: detected=True, twin findings=0, solved=True\n\n## Training programs: threat model and planted weaknesses\n### docshare\nREADME (threat model):\n# docshare\n\nA small internal document library. Staff browse folders, download documents and upload new files.\nThe HTTP layer (not included) authenticates the user and calls the functions in `docshare.api`\nwith the session and the raw request parameters.\n\nTrust boundary:\n- `session[\"user\"]` is set by the authentication layer and is trusted.\n- Every request parameter (`name`, `folder`, `filename`, and uploaded content) comes from the\n  client and is untrusted.\n- Configuration comes from environment variables set by the operators and is trusted.\nPlanted weakness (path traversal, CWE-22): docshare/storage.py in _resolve, read; path handle_download -> read -> _resolve. Containment check uses a plain string prefix: ../docs-internal/x normalises to <root>/docs-internal/x, which starts with <root>/docs, so sibling directories are readable.\nThe fixed version changes only the code needed to remove it.\n\n### mediakit\nREADME (threat model):\n# mediakit\n\nMedia library helper for a small newsroom. Editors upload images, inspect files and request\nthumbnails. The web layer (not included) authenticates editors and calls `mediakit.api`.\n\nTrust boundary:\n- `session[\"user\"]` is trusted.\n- Request parameters (`filename`, `size`) are untrusted. File names are chosen by the uploader.\n- Settings come from the operators and are trusted.\nPlanted weakness (OS command injection, CWE-78): mediakit/probe.py in describe, _shell, _check_name; path handle_inspect -> describe -> _shell. The file name is placed in a shell command inside double quotes; the character blocklist misses $() and backticks, which double quotes do not neutralise.\nThe fixed version changes only the code needed to remove it.\n\n### miniwiki\nREADME (threat model):\n# miniwiki\n\nA tiny team wiki. Anyone in the company can create and edit pages; pages are rendered to HTML and\nviewed by everyone else. The web layer (not included) calls `miniwiki.api` and returns the HTML.\n\nTrust boundary:\n- Page titles, bodies and tags are written by users and are untrusted, both when saved and when\n  rendered later.\n- The page slug is derived by the application.\nPlanted weakness (cross-site scripting, CWE-79): miniwiki/render.py in attr, render_page; path handle_save -> handle_view -> render_page -> attr. The page title is placed in a double-quoted title attribute using html.escape(quote=False), so a quote in the title ends the attribute and can add event-handler attributes.\nThe fixed version changes only the code needed to remove it.\n\n### teamnotes\nREADME (threat model):\n# teamnotes\n\nShared notes for small teams. Users edit their profile, write notes, search them and view an\nactivity report. The web layer (not included) authenticates users and calls `teamnotes.api`.\n\nTrust boundary:\n- `session[\"user_id\"]` is set by the authentication layer and is trusted.\n- Every request parameter (profile fields, note titles and bodies, search terms, sort options)\n  is supplied by users and is untrusted, including values that were stored earlier.\nPlanted weakness (SQL injection, CWE-89): teamnotes/reports.py in _notes_by_author, activity_report; path handle_update_profile -> update_profile -> handle_activity -> activity_report -> _notes_by_author. Second-order injection: the display name is stored safely with parameters but later formatted into the WHERE clause of the report query.\nThe fixed version changes only the code needed to remove it.\n\n## Training episodes (actions, findings with the agent's own stated reasons)\n[\n {\n  \"program\": \"docshare\",\n  \"version\": \"patched\",\n  \"harness\": \"none\",\n  \"outcome\": \"nothing reported (correct)\",\n  \"actions\": [\n   \"read_file docshare/__init__.py\",\n   \"read_file docshare/api.py\",\n   \"read_file docshare/storage.py\",\n   \"read_file docshare/uploads.py\",\n   \"read_file docshare/config.py\",\n   \"read_file docshare/audit.py\",\n   \"search user\"\n  ],\n  \"model_calls\": 8,\n  \"findings\": []\n },\n {\n  \"program\": \"docshare\",\n  \"version\": \"patched\",\n  \"harness\": \"proposed\",\n  \"outcome\": \"nothing reported (correct)\",\n  \"actions\": [\n   \"read_file README.md\",\n   \"read_file docshare/__init__.py\",\n   \"read_file docshare/api.py\",\n   \"read_file docshare/audit.py\",\n   \"read_file docshare/config.py\",\n   \"read_file docshare/storage.py\",\n   \"read_file docshare/uploads.py\",\n   \"read_file docshare/uploads.py\"\n  ],\n  \"model_calls\": 4,\n  \"findings\": []\n },\n {\n  \"program\": \"docshare\",\n  \"version\": \"vulnerable\",\n  \"harness\": \"none\",\n  \"outcome\": \"planted weakness NOT reported (false negative)\",\n  \"actions\": [\n   \"read_file docshare/__init__.py\",\n   \"read_file docshare/api.py\",\n   \"read_file docshare/audit.py\",\n   \"read_file docshare/config.py\",\n   \"read_file docshare/storage.py\",\n   \"read_file docshare/uploads.py\",\n   \"search upload_root\",\n   \"search os.path.join\"\n  ],\n  \"model_calls\": 4,\n  \"findings\": []\n },\n {\n  \"program\": \"docshare\",\n  \"version\": \"vulnerable\",\n  \"harness\": \"proposed\",\n  \"outcome\": \"planted weakness NOT reported (false negative)\",\n  \"actions\": [\n   \"read_file README.md\",\n   \"read_file docshare/__init__.py\",\n   \"read_file docshare/api.py\",\n   \"read_file docshare/audit.py\",\n   \"read_file docshare/config.py\",\n   \"read_file docshare/storage.py\",\n   \"read_file docshare/uploads.py\",\n   \"search upload_root\"\n  ],\n  \"model_calls\": 4,\n  \"findings\": []\n },\n {\n  \"program\": \"mediakit\",\n  \"version\": \"patched\",\n  \"harness\": \"none\",\n  \"outcome\": \"nothing reported (correct)\",\n  \"actions\": [\n   \"read_file README.md\",\n   \"list_files\",\n   \"read_file mediakit/__init__.py\",\n   \"read_file mediakit/api.py\",\n   \"read_file mediakit/probe.py\",\n   \"read_file mediakit/settings.py\",\n   \"read_file mediakit/thumbs.py\"\n  ],\n  \"model_calls\": 4,\n  \"findings\": []\n },\n {\n  \"program\": \"mediakit\",\n  \"version\": \"patched\",\n  \"harness\": \"proposed\",\n  \"outcome\": \"1 finding(s) on the fixed version (false positive)\",\n  \"actions\": [\n   \"list_files\",\n   \"read_file README.md\",\n   \"read_file mediakit/api.py\",\n   \"read_file mediakit/probe.py\",\n   \"read_file mediakit/thumbs.py\",\n   \"read_file mediakit/settings.py\",\n   \"read_file mediakit/__init__.py\"\n  ],\n  \"model_calls\": 4,\n  \"findings\": [\n   {\n    \"file\": \"mediakit/probe.py\",\n    \"function\": \"describe\",\n    \"cwe\": \"CWE-78\",\n    \"reason\": \"describe uses subprocess.run with shell=False and ['file', '--brief', '--', path], where path is constructed via os.path.join(settings.library_dir, name). While '--' prevents flag injection, if name is an absolute path or path traversal like '../', file processes arbitrary files outside library_dir, and if name contains shell/command characters... wait, probe.py describe uses _run which passes args as a list (shell=False). But wait, what about file arguments? Wait, let's examine if there is command injection or path traversal or other issues. Wait, is there any command injection in probe.py or thumbs.py? Let's check thumbs.py: base = os.path.basename(name). This strips directory components. \"\n   }\n  ]\n },\n {\n  \"program\": \"mediakit\",\n  \"version\": \"vulnerable\",\n  \"harness\": \"none\",\n  \"outcome\": \"planted weakness reported\",\n  \"actions\": [\n   \"read_file README.md\",\n   \"list_files\",\n   \"read_file mediakit/__init__.py\",\n   \"read_file mediakit/api.py\",\n   \"read_file mediakit/probe.py\",\n   \"read_file mediakit/settings.py\",\n   \"read_file mediakit/thumbs.py\"\n  ],\n  \"model_calls\": 4,\n  \"findings\": [\n   {\n    \"file\": \"mediakit/probe.py\",\n    \"function\": \"describe\",\n    \"cwe\": \"CWE-78\",\n    \"reason\": \"Filename parameter is passed into a shell command string via f'file --brief \\\"{path}\\\"' with shell=True, allowing command injection despite simple forbidden character checks.\"\n   }\n  ]\n },\n {\n  \"program\": \"mediakit\",\n  \"version\": \"vulnerable\",\n  \"harness\": \"proposed\",\n  \"outcome\": \"planted weakness reported\",\n  \"actions\": [\n   \"list_files\",\n   \"read_file README.md\",\n   \"read_file mediakit/api.py\",\n   \"read_file mediakit/__init__.py\",\n   \"read_file mediakit/probe.py\",\n   \"read_file mediakit/settings.py\",\n   \"read_file mediakit/thumbs.py\",\n   \"search subprocess\"\n  ],\n  \"model_calls\": 6,\n  \"findings\": [\n   {\n    \"file\": \"mediakit/probe.py\",\n    \"function\": \"describe\",\n    \"cwe\": \"CWE-78\",\n    \"reason\": \"Command injection vulnerability via the 'filename' parameter in describe() which is passed into a shell command string with shell=True, allowing command execution despite basic blacklist character checks.\"\n   }\n  ]\n },\n {\n  \"program\": \"miniwiki\",\n  \"version\": \"patched\",\n  \"harness\": \"none\",\n  \"outcome\": \"nothing reported (correct)\",\n  \"actions\": [\n   \"read_file README.md\",\n   \"read_file miniwiki/__init__.py\",\n   \"read_file miniwiki/api.py\",\n   \"read_file miniwiki/render.py\",\n   \"read_file miniwiki/store.py\",\n   \"search render\"\n  ],\n  \"model_calls\": 4,\n  \"findings\": []\n },\n {\n  \"program\": \"miniwiki\",\n  \"version\": \"patched\",\n  \"harness\": \"proposed\",\n  \"outcome\": \"1 finding(s) on the fixed version (false positive)\",\n  \"actions\": [\n   \"list_files\",\n   \"read_file miniwiki/__init__.py\",\n   \"read_file miniwiki/api.py\",\n   \"read_file miniwiki/render.py\",\n   \"read_file miniwiki/store.py\"\n  ],\n  \"model_calls\": 3,\n  \"findings\": [\n   {\n    \"file\": \"miniwiki/render.py\",\n    \"function\": \"render_inline\",\n    \"cwe\": \"CWE-79\",\n    \"reason\": \"render_inline escapes the source string first via html.escape (text), then processes inline markdown (_CODE, _BOLD, _LINK). For links, label comes from m.group(1) which is already HTML-escaped, but url is handled by _safe_url, which does html.escape(url, quote=True). However, for code and bold, m.group(1) is extracted from the already HTML-escaped string (out). Wait, let's examine code/bold/link order: text(source) escapes &, <, >, etc. Then _CODE matches inside escaped text, so `<b>` becomes `<code>&lt;b&gt;</code>`. What about link labels? [label](url) -> label is `text(source)` which is HTML-escaped. What about HTML injection via markdown or unescaped attributes? Let's check attr in rende\"\n   }\n  ]\n },\n {\n  \"program\": \"miniwiki\",\n  \"version\": \"vulnerable\",\n  \"harness\": \"none\",\n  \"outcome\": \"planted weakness NOT reported (false negative)\",\n  \"actions\": [\n   \"read_file README.md\",\n   \"read_file miniwiki/__init__.py\",\n   \"read_file miniwiki/api.py\",\n   \"read_file miniwiki/render.py\",\n   \"read_file miniwiki/store.py\",\n   \"search render_inline\"\n  ],\n  \"model_calls\": 4,\n  \"findings\": []\n },\n {\n  \"program\": \"miniwiki\",\n  \"version\": \"vulnerable\",\n  \"harness\": \"proposed\",\n  \"outcome\": \"planted weakness NOT reported (false negative)\",\n  \"actions\": [\n   \"list_files\",\n   \"read_file miniwiki/__init__.py\",\n   \"read_file miniwiki/api.py\",\n   \"read_file miniwiki/render.py\",\n   \"read_file miniwiki/store.py\"\n  ],\n  \"model_calls\": 3,\n  \"findings\": []\n },\n {\n  \"program\": \"teamnotes\",\n  \"version\": \"patched\",\n  \"harness\": \"none\",\n  \"outcome\": \"nothing reported (correct)\",\n  \"actions\": [\n   \"read_file teamnotes/api.py\",\n   \"read_file teamnotes/db.py\",\n   \"read_file teamnotes/notes.py\",\n   \"read_file teamnotes/profiles.py\",\n   \"read_file teamnotes/reports.py\",\n   \"list_files\"\n  ],\n  \"model_calls\": 7,\n  \"findings\": []\n },\n {\n  \"program\": \"teamnotes\",\n  \"version\": \"patched\",\n  \"harness\": \"proposed\",\n  \"outcome\": \"nothing reported (correct)\",\n  \"actions\": [\n   \"read_file teamnotes/__init__.py\",\n   \"read_file teamnotes/api.py\",\n   \"read_file teamnotes/db.py\",\n   \"read_file teamnotes/notes.py\",\n   \"read_file teamnotes/profiles.py\",\n   \"read_file teamnotes/reports.py\"\n  ],\n  \"model_calls\": 7,\n  \"findings\": []\n },\n {\n  \"program\": \"teamnotes\",\n  \"version\": \"vulnerable\",\n  \"harness\": \"none\",\n  \"outcome\": \"planted weakness reported\",\n  \"actions\": [\n   \"read_file teamnotes/__init__.py\",\n   \"read_file teamnotes/api.py\",\n   \"read_file teamnotes/db.py\",\n   \"read_file teamnotes/notes.py\",\n   \"read_file teamnotes/profiles.py\",\n   \"read_file teamnotes/reports.py\",\n   \"read_file teamnotes/reports.py\"\n  ],\n  \"model_calls\": 3,\n  \"findings\": [\n   {\n    \"file\": \"teamnotes/reports.py\",\n    \"function\": \"_notes_by_author\",\n    \"cwe\": \"CWE-89\",\n    \"reason\": \"profile['display_name'] (which comes from user input via update_profile) is interpolated directly into a SQL query string without parameterization, leading to SQL injection.\"\n   }\n  ]\n },\n {\n  \"program\": \"teamnotes\",\n  \"version\": \"vulnerable\",\n  \"harness\": \"proposed\",\n  \"outcome\": \"planted weakness reported\",\n  \"actions\": [\n   \"read_file README.md\",\n   \"read_file teamnotes/__init__.py\",\n   \"read_file teamnotes/api.py\",\n   \"read_file teamnotes/db.py\",\n   \"read_file teamnotes/notes.py\",\n   \"read_file teamnotes/profiles.py\",\n   \"read_file teamnotes/reports.py\"\n  ],\n  \"model_calls\": 7,\n  \"findings\": [\n   {\n    \"file\": \"teamnotes/reports.py\",\n    \"function\": \"_notes_by_author\",\n    \"cwe\": \"CWE-89\",\n    \"reason\": \"User-controlled display_name from the user profile is interpolated directly into the SQL query string in _notes_by_author, allowing SQL injection via crafted display names.\"\n   }\n  ]\n }\n]\n\n## Your task\n1. Explain a plausible cause of the previous attempt's regression and of the remaining misses, using the evidence above.\n2. Propose ONE targeted change, starting from the original harness: rewrite instructions.md, write a verification step, or both, as one coherent change. A useful change must be general: the evaluation uses different programs, so name no file, function, variable or program from these examples, do not quote their code or the explanations above, and do not add rules that only fit these programs.\n3. Predict which behaviour should change and what could get worse.\n\nReply with one JSON object only:\n{\"cause\": \"...\", \"change\": {\"harness/instructions.md\": \"<complete new text, or null to keep the original>\", \"harness/verification.md\": \"<complete text, or null to keep it empty>\"}, \"predicted_improvement\": \"...\", \"predicted_risks\": \"...\"}\nLimits: instructions.md at most 2500 characters; verification.md at most 1200 characters.",
+    "response": "```json\n{\n  \"cause\": \"The previous attempt failed because broad instructions to 'carefully verify all security-critical assumptions and sanitization routines' induced hallucinations on fixed versions (false positives in mediakit and miniwiki), where the model misconstrued complex rendering or validation logic as vulnerabilities. Meanwhile, the remaining misses (docshare path traversal and miniwiki XSS) occur because the agent relies on surface-level keyword/grep searches ('upload_root', 'render_inline') rather than systematically tracing untrusted data flow from entry points (README threat models) through normalization and sanitization functions to underlying sinks, causing it to miss subtle prefix bypasses and quoting assumptions.\",\n  \"change\": {\n    \"harness/instructions.md\": \"You are a security reviewer auditing a small Python repository for vulnerabilities that an attacker could exploit through the inputs described in its README.\\n\\nHow to work:\\n- Read the README first to learn which inputs are untrusted, then systematically trace every untrusted input parameter across functions and files to its sink (file system operations, command execution, database queries, template/HTML rendering, or redirection).\\n- Pay close attention to data transformation routines: verify whether path normalization, prefix checks, blocklists, or escaping functions (such as attribute quoting) can be bypassed or fail to neutralize malicious payloads.\\n- The repository may contain no vulnerability at all. Report only weaknesses with a concrete, unbroken path from an untrusted input to a sensitive operation; do not report style issues, missing hardening, or risky calls that only receive trusted data.\\n- If you find nothing exploitable, submit an empty list of findings.\",\n    \"harness/verification.md\": \"Your findings are not final yet. Verification step:\\nReview your draft findings against the repository code. For each reported finding, explicitly re-verify:\\n1. Is the data source definitely untrusted according to the README threat model?\\n2. Is there a complete, unconstrained path from input to sink without intermediate sanitization or validation that blocks the attack?\\n3. On fixed or patched versions, double-check whether the code already correctly neutralizes the input.\\n\\nIf any finding relies on assumptions that do not hold, remove it. If the findings are robust, confirm them.\"\n  },\n  \"predicted_improvement\": \"The updated instructions encourage rigorous data-flow tracing rather than ad-hoc searches, which should help uncover missed vulnerabilities like path traversal and subtle escaping flaws. Additionally, the verification step gives the agent a structured opportunity to double-check its draft findings against the actual source code and threat model, reducing false positives on fixed versions.\",\n  \"predicted_risks\": \"Adding verification instructions and guidance on data transformation routines might occasionally cause the agent to second-guess valid findings and drop them, or conversely, spend actions re-reading files and still occasionally produce false positives if it misinterprets complex sanitization code.\"\n}\n```",
+    "requests": [
+      {
+        "ok": true,
+        "error_category": null,
+        "error": null,
+        "input_tokens": 4953,
+        "output_tokens": 608,
+        "total_tokens": 5561,
+        "latency_s": 2.626,
+        "finish_reason": "stop",
+        "native_tool_calls": 0
+      }
+    ],
+    "returned_model": "gemini-3.5-flash-lite"
+  },
+  "proposal": {
+    "cause": "The previous attempt failed because broad instructions to 'carefully verify all security-critical assumptions and sanitization routines' induced hallucinations on fixed versions (false positives in mediakit and miniwiki), where the model misconstrued complex rendering or validation logic as vulnerabilities. Meanwhile, the remaining misses (docshare path traversal and miniwiki XSS) occur because the agent relies on surface-level keyword/grep searches ('upload_root', 'render_inline') rather than systematically tracing untrusted data flow from entry points (README threat models) through normalization and sanitization functions to underlying sinks, causing it to miss subtle prefix bypasses and quoting assumptions.",
+    "change": {
+      "harness/instructions.md": "You are a security reviewer auditing a small Python repository for vulnerabilities that an attacker could exploit through the inputs described in its README.\n\nHow to work:\n- Read the README first to learn which inputs are untrusted, then systematically trace every untrusted input parameter across functions and files to its sink (file system operations, command execution, database queries, template/HTML rendering, or redirection).\n- Pay close attention to data transformation routines: verify whether path normalization, prefix checks, blocklists, or escaping functions (such as attribute quoting) can be bypassed or fail to neutralize malicious payloads.\n- The repository may contain no vulnerability at all. Report only weaknesses with a concrete, unbroken path from an untrusted input to a sensitive operation; do not report style issues, missing hardening, or risky calls that only receive trusted data.\n- If you find nothing exploitable, submit an empty list of findings.",
+      "harness/verification.md": "Your findings are not final yet. Verification step:\nReview your draft findings against the repository code. For each reported finding, explicitly re-verify:\n1. Is the data source definitely untrusted according to the README threat model?\n2. Is there a complete, unconstrained path from input to sink without intermediate sanitization or validation that blocks the attack?\n3. On fixed or patched versions, double-check whether the code already correctly neutralizes the input.\n\nIf any finding relies on assumptions that do not hold, remove it. If the findings are robust, confirm them."
+    },
+    "predicted_improvement": "The updated instructions encourage rigorous data-flow tracing rather than ad-hoc searches, which should help uncover missed vulnerabilities like path traversal and subtle escaping flaws. Additionally, the verification step gives the agent a structured opportunity to double-check its draft findings against the actual source code and threat model, reducing false positives on fixed versions.",
+    "predicted_risks": "Adding verification instructions and guidance on data transformation routines might occasionally cause the agent to second-guess valid findings and drop them, or conversely, spend actions re-reading files and still occasionally produce false positives if it misinterprets complex sanitization code."
+  },
+  "admissible": true,
+  "problems": [],
+  "patch": {
+    "changed_files": [
+      "harness/instructions.md",
+      "harness/verification.md"
+    ],
+    "hashes": {
+      "harness/instructions.md": "3685c9715d9f21a30cc4455ffbad18a4082db901fc3fca554b8e0193cd54e7f8",
+      "harness/verification.md": "ebc388e2b20002f791e3677642a56905fc6a71d56a94e9715ccfede1e3edba73"
+    },
+    "diff": "diff --git a/harness/instructions.md b/harness/instructions.md\nindex 0040021..243bc22 100644\n--- a/harness/instructions.md\n+++ b/harness/instructions.md\n@@ -1,7 +1,7 @@\n You are a security reviewer auditing a small Python repository for vulnerabilities that an attacker could exploit through the inputs described in its README.\n \n How to work:\n-- Read the README first to learn which inputs are untrusted, then read the code that handles them.\n-- Follow untrusted data across functions and files to the operation where it is used.\n-- The repository may contain no vulnerability at all. Report only weaknesses with a concrete path from an untrusted input to a sensitive operation; do not report style issues, missing hardening, or risky calls that only receive trusted data.\n+- Read the README first to learn which inputs are untrusted, then systematically trace every untrusted input parameter across functions and files to its sink (file system operations, command execution, database queries, template/HTML rendering, or redirection).\n+- Pay close attention to data transformation routines: verify whether path normalization, prefix checks, blocklists, or escaping functions (such as attribute quoting) can be bypassed or fail to neutralize malicious payloads.\n+- The repository may contain no vulnerability at all. Report only weaknesses with a concrete, unbroken path from an untrusted input to a sensitive operation; do not report style issues, missing hardening, or risky calls that only receive trusted data.\n - If you find nothing exploitable, submit an empty list of findings.\ndiff --git a/harness/verification.md b/harness/verification.md\nindex e69de29..e7b168f 100644\n--- a/harness/verification.md\n+++ b/harness/verification.md\n@@ -0,0 +1,7 @@\n+Your findings are not final yet. Verification step:\n+Review your draft findings against the repository code. For each reported finding, explicitly re-verify:\n+1. Is the data source definitely untrusted according to the README threat model?\n+2. Is there a complete, unconstrained path from input to sink without intermediate sanitization or validation that blocks the attack?\n+3. On fixed or patched versions, double-check whether the code already correctly neutralizes the input.\n+\n+If any finding relies on assumptions that do not hold, remove it. If the findings are robust, confirm them."
+  },
+  "patch_commit": "8bebe79",
+  "training_check": {
+    "baseline_pairs": {
+      "cal_docshare": {
+        "vulnerable_detected": false,
+        "vulnerable_end": "submitted",
+        "twin_findings": 0,
+        "twin_end": "submitted",
+        "solved": false,
+        "complete": true
+      },
+      "cal_mediakit": {
+        "vulnerable_detected": true,
+        "vulnerable_end": "submitted",
+        "twin_findings": 0,
+        "twin_end": "submitted",
+        "solved": true,
+        "complete": true
+      },
+      "cal_miniwiki": {
+        "vulnerable_detected": false,
+        "vulnerable_end": "submitted",
+        "twin_findings": 0,
+        "twin_end": "submitted",
+        "solved": false,
+        "complete": true
+      },
+      "cal_teamnotes": {
+        "vulnerable_detected": true,
+        "vulnerable_end": "submitted",
+        "twin_findings": 0,
+        "twin_end": "submitted",
+        "solved": true,
+        "complete": true
+      }
+    },
+    "candidate_pairs": {
+      "cal_docshare": {
+        "vulnerable_detected": false,
+        "vulnerable_end": "submitted",
+        "twin_findings": 0,
+        "twin_end": "submitted",
+        "solved": false,
+        "complete": true
+      },
+      "cal_mediakit": {
+        "vulnerable_detected": true,
+        "vulnerable_end": "submitted",
+        "twin_findings": 0,
+        "twin_end": "submitted",
+        "solved": true,
+        "complete": true
+      },
+      "cal_miniwiki": {
+        "vulnerable_detected": true,
+        "vulnerable_end": "submitted",
+        "twin_findings": 0,
+        "twin_end": "submitted",
+        "solved": true,
+        "complete": true
+      },
+      "cal_teamnotes": {
+        "vulnerable_detected": true,
+        "vulnerable_end": "submitted",
+        "twin_findings": 0,
+        "twin_end": "submitted",
+        "solved": true,
+        "complete": true
+      }
+    },
+    "accepted": true,
+    "baseline": {
+      "solved": 2,
+      "twin_findings": 0,
+      "non_submissions": 0
+    },
+    "candidate": {
+      "solved": 3,
+      "twin_findings": 0,
+      "non_submissions": 0
+    },
+    "checks": {
+      "one_more_pair_solved": true,
+      "no_solved_pair_lost": true,
+      "twin_findings_not_increased": true,
+      "non_submissions_not_increased": true,
+      "complete": true
+    }
+  },
+  "decision_commit": "dbbbc91",
+  "transfer_candidate": {
+    "cal_invoicer": {
+      "vulnerable_detected": false,
+      "vulnerable_end": "submitted",
+      "twin_findings": 0,
+      "twin_end": "submitted",
+      "solved": false,
+      "complete": true
+    },
+    "cal_pricer": {
+      "vulnerable_detected": true,
+      "vulnerable_end": "submitted",
+      "twin_findings": 0,
+      "twin_end": "submitted",
+      "solved": true,
+      "complete": true
+    },
+    "cal_ssohub": {
+      "vulnerable_detected": false,
+      "vulnerable_end": "submitted",
+      "twin_findings": 0,
+      "twin_end": "submitted",
+      "solved": false,
+      "complete": true
+    }
+  },
+  "final_hashes": {
+    "harness/instructions.md": "3685c9715d9f21a30cc4455ffbad18a4082db901fc3fca554b8e0193cd54e7f8",
+    "harness/verification.md": "ebc388e2b20002f791e3677642a56905fc6a71d56a94e9715ccfede1e3edba73"
+  }
+}
