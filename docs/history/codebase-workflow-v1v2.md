@@ -1,3 +1,5 @@
+> **Historical.** This walkthrough describes the v1/v2 harness at commit `3291f89`, which has since been replaced by the memory-guided repository-repair workflow (see the README and docs/protocol.md).
+
 # How `harness_mvp` works: execution flow from command line to report
 
 This document traces what actually happens when you run the harness, from the entry point to the

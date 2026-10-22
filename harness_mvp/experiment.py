@@ -542,14 +542,6 @@ def cmd_plan(args) -> int:
     return 0
 
 
-def cmd_study_report(args) -> int:
-    from .study_report import write_study_report
-    path = write_study_report(Path(args.study))
-    print(path.read_text(encoding="utf-8"))
-    print(f"\n[report] written to {path}")
-    return 0
-
-
 def register(sub) -> None:
     def reps_opts(p):
         p.add_argument("--memory-reps", type=int, default=1, help="memory-source repetitions per task")
@@ -593,7 +585,3 @@ def register(sub) -> None:
     p.add_argument("--reps", type=int, default=None, help="development only; test uses the frozen value")
     _add_common(p)
     p.set_defaults(func=cmd_evaluate)
-
-    p = sub.add_parser("study-report", help="regenerate a study's report.md")
-    p.add_argument("study")
-    p.set_defaults(func=cmd_study_report)

@@ -1,7 +1,8 @@
-"""Model backends: a minimal OpenAI-compatible chat-completions adapter and a synthetic mock.
+"""Model adapter: a minimal OpenAI-compatible chat-completions client, errors and the request budget.
 
-The adapter uses only the standard library so it is easy to swap out. Any object with a
-`complete(messages, context) -> ModelResponse` method and a `synthetic` attribute works.
+Standard library only, so it is easy to swap out. Any object with a
+`complete(messages, context) -> ModelResponse` method and a `synthetic` attribute works
+(the deterministic mock backends live in mock.py).
 """
 from __future__ import annotations
 
@@ -228,101 +229,3 @@ def _error_info(exc: urllib.error.HTTPError) -> tuple[str, float | None]:
         if retry_after is None and (m := pattern.search(raw)):
             retry_after = float(m.group(1))
     return message[:300], retry_after
-
-
-# ---------------------------------------------------------------------------
-# Mock backend. Every response is SYNTHETIC: scripted per task/style/attempt so
-# that offline runs exercise retry-then-success, permanent failure, malformed
-# output, syntax errors, and public-pass/hidden-fail paths.
-# ---------------------------------------------------------------------------
-
-MOCK_SATURATING_ADD_PARTIAL = '''INT32_MIN = -2**31
-INT32_MAX = 2**31
-
-
-def saturating_add(a, b):
-    total = a + b
-    if total > INT32_MAX:
-        return INT32_MAX - 1
-    if total < INT32_MIN:
-        return INT32_MIN
-    return total
-'''
-
-MOCK_SYNTAX_ERROR = '''def chunk_string(text, size)
-    return [text]
-'''
-
-# Used only by runner checks (smoke): must hit the execution timeout.
-TIMEOUT_CANDIDATE = '''def merge_intervals(intervals):
-    while True:
-        pass
-'''
-
-
-def _fence(code: str) -> str:
-    return f"```python\n{code}```"
-
-
-class MockModel:
-    synthetic = True
-
-    def __init__(self, tasks):
-        self.tasks = {t.task_id: t for t in tasks}
-
-    def trusted_sources(self) -> list[str]:
-        """Every candidate this mock can emit (plus runner-check code); all repo-authored."""
-        sources = [MOCK_SATURATING_ADD_PARTIAL, TIMEOUT_CANDIDATE]
-        for t in self.tasks.values():
-            sources += [t.buggy_source, t.reference_source, *t.mock_sources()]
-        return sources
-
-    def _script_v2(self, task, context: str, attempt: int) -> str:
-        """Experiment v2 scenarios, chosen by the task's `mock_scenario` (maintainer data).
-
-        recovery: buggy, then fixed by any revision.  review_benefit: public-pass/hidden-fail
-        partial; a review with full context repairs it, minimal context returns it unchanged.
-        regression: correct first; a review with minimal context breaks it.
-        malformed_recovery: prose without code, then fixed.  permanent_failure: buggy twice.
-        """
-        buggy, ref = task.buggy_source, task.reference_source
-        scenario = task.mock_scenario or "recovery"
-        if scenario == "review_benefit":
-            partial = task.mock_variant("partial")
-            return _fence(ref if attempt == 2 and context == "full" else partial)
-        if scenario == "regression":
-            return _fence(task.mock_variant("regressed") if attempt == 2 and context == "minimal" else ref)
-        if scenario == "malformed_recovery":
-            return "The fix is to compare timestamps strictly." if attempt == 1 else _fence(ref)
-        if scenario == "permanent_failure":
-            return _fence(buggy)
-        return _fence(buggy if attempt == 1 else ref)
-
-    def _script(self, task_id: str, style: str, attempt: int) -> str:
-        task = self.tasks[task_id]
-        buggy, ref = task.buggy_source, task.reference_source
-        if task_id == "merge_intervals":  # fails first, repaired on retry
-            return _fence(buggy) if attempt == 1 else _fence(ref)
-        if task_id == "stable_dedupe":  # first-attempt success
-            return _fence(ref)
-        if task_id == "top_k_words":  # direct: permanent failure; structured: repaired
-            if style == "structured":
-                return _fence(buggy) if attempt == 1 else _fence(ref)
-            return ("I would sort by count and then alphabetically." if attempt == 1
-                    else _fence(buggy))
-        if task_id == "saturating_add":  # direct: public pass, hidden fail (no retry)
-            return _fence(ref) if style == "structured" else _fence(MOCK_SATURATING_ADD_PARTIAL)
-        if task_id == "chunk_string":  # syntax error, then unfenced correct module
-            return _fence(MOCK_SYNTAX_ERROR) if attempt == 1 else ref
-        return _fence(ref)
-
-    def complete(self, messages: list[dict], context: dict | None = None) -> ModelResponse:
-        ctx = context or {}
-        if ctx.get("experiment") == "v2":
-            text = self._script_v2(self.tasks[ctx["task_id"]], ctx["config"]["repair_context"], ctx["attempt"])
-        else:
-            text = self._script(ctx["task_id"], ctx["config"]["instruction_style"], ctx["attempt"])
-        # Synthetic token counts: ~4 characters per token. Not real usage.
-        inp = sum(len(m["content"]) for m in messages) // 4 + 1
-        out = len(text) // 4 + 1
-        return ModelResponse(text, inp, out, inp + out, 0.0, "stop", "mock")

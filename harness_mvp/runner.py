@@ -1,8 +1,8 @@
 """Isolated test execution.
 
 DockerRunner is the only runner allowed for model-generated code. TrustedLocalRunner exists so
-mock mode works without Docker: it refuses any source whose hash is not in an allowlist of
-repository-authored candidates (task files and fixed mock outputs).
+mock mode works without Docker: it refuses any file whose hash is not in an allowlist of
+repository-authored content (task files and fixed mock variants).
 
 This is NOT a hardened sandbox for adversarial programs; see README.
 """
@@ -20,7 +20,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .tasks import Task, sha256_text
+from .contracts import sha256_text
 
 DEFAULT_IMAGE = "harness-mvp-runner:py311"
 DOCKERFILE = Path(__file__).resolve().parent.parent / "docker" / "runner.Dockerfile"
@@ -81,18 +81,6 @@ def classify(returncode: int | None, output: str, expected: int, timed_out: bool
     if returncode == 137:
         return "failed", tests_run, failed, "killed (possibly memory limit)"
     return "failed", tests_run, failed, ""
-
-
-def _prepare_workdir(root: Path, source: str, task: Task, which: str) -> Path:
-    """Directory holding ONLY candidate.py and the requested test file."""
-    root.mkdir(parents=True, exist_ok=True)
-    workdir = Path(tempfile.mkdtemp(prefix=f"{task.task_id}-{which}-", dir=root))
-    (workdir / "candidate.py").write_text(source, encoding="utf-8")
-    shutil.copyfile(task.tests_path(which), workdir / f"{which}_tests.py")
-    os.chmod(workdir, 0o755)
-    for f in workdir.iterdir():
-        os.chmod(f, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
-    return workdir
 
 
 def _module_for(test_rel: str) -> str:
@@ -198,11 +186,6 @@ class DockerRunner:
             "python", "-B", "-m", "unittest", "-v", module,
         ]
 
-    def run(self, source: str, task: Task, which: str) -> ExecResult:
-        workdir = _prepare_workdir(self.work_root, source, task, which)
-        expected = count_tests(task.tests_path(which).read_text(encoding="utf-8"))
-        return self._execute(workdir, f"{which}_tests", expected)
-
     def run_files(self, files: dict[str, str], test_rel: str, label: str = "exec") -> ExecResult:
         """Run the unittest module `test_rel` over exactly `files` (a fresh read-only mount)."""
         workdir = _prepare_files_dir(self.work_root, files, label)
@@ -254,13 +237,6 @@ class TrustedLocalRunner:
     def describe(self) -> dict:
         return {"runner": self.name, "timeout_s": self.timeout_s,
                 "note": "host subprocess; refuses any source not in the repo-authored allowlist"}
-
-    def run(self, source: str, task: Task, which: str) -> ExecResult:
-        if sha256_text(source) not in self.allowed:
-            raise PermissionError("TrustedLocalRunner refuses non-allowlisted code; use Docker for model output")
-        workdir = _prepare_workdir(self.work_root, source, task, which)
-        expected = count_tests(task.tests_path(which).read_text(encoding="utf-8"))
-        return self._execute(workdir, f"{which}_tests", expected)
 
     def run_files(self, files: dict[str, str], test_rel: str, label: str = "exec") -> ExecResult:
         bad = sorted(rel for rel, content in files.items() if sha256_text(content) not in self.allowed)

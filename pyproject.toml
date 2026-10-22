@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "harness-mvp"
 version = "0.1.0"
-description = "Black-box selection of a code-repair agent's harness configuration (exploratory MVP)"
+description = "Memory-guided repository repair: baseline vs static guidance vs learned memory (research prototype)"
 requires-python = ">=3.11"
 dependencies = []  # standard library only; Docker is required for live runs
 
