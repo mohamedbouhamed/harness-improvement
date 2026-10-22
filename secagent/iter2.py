@@ -77,6 +77,8 @@ def main(argv=None) -> int:
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--mock", action="store_true")
     mode.add_argument("--live", action="store_true")
+    ap.add_argument("--guard-eur", type=float, default=GUARD_EUR, help="cumulative upper-bound guard (user-authorized)")
+    ap.add_argument("--tier", choices=[t[0] for t in TIERS], default=None, help="run exactly this tier (must fit)")
     args = ap.parse_args(argv)
     if changed_files():
         sys.exit(f"working tree not clean: {changed_files()}")
@@ -101,11 +103,12 @@ def main(argv=None) -> int:
         assert tasks[tid].family not in prompt, f"transfer program {tid} leaked into the proposer prompt"
     price = load_price("gemini-3.5-flash-lite")
     proposer_worst = PROPOSER_ATTEMPTS * price.usd(estimate_input_tokens({"messages": [{"role": "user", "content": prompt}]}), 4096)
-    ledger = CostLedger(LEDGER, GUARD_EUR, 1.0)
-    allowance = GUARD_EUR - ledger.bound_eur
+    ledger = CostLedger(LEDGER, args.guard_eur, 1.0)
+    allowance = args.guard_eur - ledger.bound_eur
     costs = {t[0]: round(proposer_worst + tier_episodes(t) * EPISODE_WORST_EUR, 3) for t in TIERS}
-    tier = next((t for t in TIERS if costs[t[0]] <= allowance), None)
-    log["budget"] = {"bound_so_far": round(ledger.bound_eur, 4), "allowance": round(allowance, 4),
+    candidates = [t for t in TIERS if args.tier in (None, t[0])]
+    tier = next((t for t in candidates if costs[t[0]] <= allowance), None)
+    log["budget"] = {"guard_eur": args.guard_eur, "requested_tier": args.tier, "bound_so_far": round(ledger.bound_eur, 4), "allowance": round(allowance, 4),
                      "proposer_worst": round(proposer_worst, 4), "tier_worst": costs, "tier": tier[0] if tier else None}
     save()
     print(json.dumps(log["budget"]))

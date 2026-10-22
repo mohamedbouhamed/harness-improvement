@@ -1,6 +1,10 @@
 # Iteration 2 — one proposal with feedback from the rejected edit
 
-Status: **prepared and verified offline; blocked by budget, no paid call sent.**
+Status: **authorized (Tier B) after the budget block below.** The user lifted the €5 ceiling for
+this iteration only and authorized Tier B: fresh training baseline, one proposal, transfer on three
+pairs if accepted. Cost tracking, request limits, model and accounting policy unchanged. The guard
+is set to the conservative need: €4.2946 already counted + €2.327 Tier B worst case → **€6.63**.
+No further iterations or benchmark changes without the user's approval.
 Protocol `sec-v1.2`. Everything below was fixed and committed before any generation.
 
 ## 1. Inspection of the previous experiment (training pairs only)
