@@ -95,7 +95,8 @@ def cmd_run(args) -> int:
     if unknown:
         sys.exit(f"unknown conditions {sorted(unknown)}")
     budget = CallBudget(args.max_model_calls, args.min_interval)
-    run_matrix(_tasks(args.split), conds, args.reps, model, budget, out, seed=args.seed,
+    tasks = [t for t in _tasks(args.split) if not args.tasks or t.task_id in args.tasks.split(",")]
+    run_matrix(tasks, conds, args.reps, model, budget, out, seed=args.seed, variants=tuple(args.variants.split(",")),
                api_retries=args.api_retries, manifest_extra={"cli": vars(args) | {"func": None}})
     print(f"report: {write_report(out, f'{args.split} run ({out.name})')}")
     if args.live:
@@ -128,6 +129,8 @@ def main(argv=None) -> int:
     r.add_argument("--split", default="calibration")
     r.add_argument("--conditions", default="none")
     r.add_argument("--reps", type=int, default=2)
+    r.add_argument("--tasks", default="", help="comma-separated task ids (default: all in the split)")
+    r.add_argument("--variants", default="vulnerable,patched")
     r.add_argument("--seed", type=int, default=0)
     r.add_argument("--temperature", type=float, default=None)
     r.add_argument("--max-tokens", type=int, default=None)

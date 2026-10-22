@@ -84,6 +84,13 @@ marker value is not exposed. For classes whose direct demonstration would be cod
 call (e.g. replaces `subprocess.run` or `pickle.loads` with a recorder) and asserts that untrusted
 input does not reach it unchecked. Witnesses are never shown to the agent.
 
+Every task declares its `witness_kind`, and every report shows it next to the task:
+- `exploit`: the witness observes the harmful effect on planted test data (docshare, miniwiki,
+  invoicer, ssohub);
+- `reachability`: the witness only shows that untrusted input reaches the dangerous call unchecked
+  (teamnotes records SQL text; mediakit, prefsync, pricer record subprocess/pickle/eval calls).
+A reachability witness is weaker evidence than an exploit witness; the two are never merged.
+
 ## Repetitions and uncertainty
 
 - `k` means **independent repetitions** of the same episode with the same settings, not best-of-k.

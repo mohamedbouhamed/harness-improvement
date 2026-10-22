@@ -109,6 +109,8 @@ def validate_task(t: SecTask) -> None:
         raise ContractError(f"{t.task_id}: patched variant is identical to vulnerable")
     if "README.md" not in vuln:
         raise ContractError(f"{t.task_id}: program needs a README.md stating the trust boundary")
+    if t.entry.get("witness_kind") not in ("exploit", "reachability"):
+        raise ContractError(f"{t.task_id}: witness_kind must be 'exploit' or 'reachability'")
     if set(t.witness_files()) != {"test_functional.py", "test_exploit.py"}:
         raise ContractError(f"{t.task_id}: witness/ must hold exactly test_functional.py and test_exploit.py")
     leaks = [rel for rel, src in vuln.items() for word in ("vuln", "exploit", "CWE", "answer", "witness")

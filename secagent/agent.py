@@ -259,7 +259,7 @@ def run_episode(task: SecTask, variant: str, model, budget: CallBudget, *, episo
     reqs = [r for t in turns for r in t["requests"]]
     record = {
         "episode_id": episode_id, "task_id": task.task_id, "split": task.split, "family": task.family,
-        "class": task.weakness_class, "variant": variant, "condition": condition, "repetition": repetition,
+        "class": task.weakness_class, "witness_kind": task.entry.get("witness_kind"), "variant": variant, "condition": condition, "repetition": repetition,
         "synthetic": bool(getattr(model, "synthetic", False)), "started_at": started,
         "task_hashes": task.hashes(), "guidance_chars": len(guidance), "guidance_est_tokens": estimate_tokens(guidance),
         "end_reason": end_reason, "fatal": fatal, "findings": findings, "score": score,

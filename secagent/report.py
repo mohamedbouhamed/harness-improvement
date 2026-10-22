@@ -114,16 +114,19 @@ def render(records: list[dict], manifest: dict, title: str) -> str:
                     lines.append(f"- {c} − none: {d['diff']:+.2f} [{d['lo']:+.2f}, {d['hi']:+.2f}] → **{d['verdict']}** ({d['families']} pairs)")
     same, total = agreement(records)
     lines += ["", f"Repetition agreement: {same}/{total} (task, variant, condition) groups gave the same outcome in every repetition.",
-              "", "## Per task", "", "| Task | Class | Condition | Vulnerable: detected | Twin: clean | Twin alarms | End reasons |",
-              "|---|---|---|---|---|---|---|"]
+              "", "## Per task", "",
+              "Witness kind: `exploit` = harmful effect observed on planted test data; `reachability` = untrusted "
+              "input shown to reach the dangerous call (weaker evidence). Never merged.", "",
+              "| Task | Class | Witness | Condition | Vulnerable: detected | Twin: clean | Twin alarms | End reasons |",
+              "|---|---|---|---|---|---|---|---|"]
     by = defaultdict(list)
     for r in records:
-        by[(r["task_id"], r["class"], r["condition"])].append(r)
-    for (tid, cls, cond), rs in sorted(by.items()):
+        by[(r["task_id"], r["class"], r.get("witness_kind"), r["condition"])].append(r)
+    for (tid, cls, wk, cond), rs in sorted(by.items()):
         v = [r for r in rs if r["variant"] == "vulnerable"]
         p = [r for r in rs if r["variant"] == "patched"]
         ends = sorted({r["end_reason"] for r in rs})
-        lines.append(f"| {tid} | {cls} | {cond} | {sum(bool(r['score']['detected']) for r in v)}/{len(v)} | "
+        lines.append(f"| {tid} | {cls} | {wk} | {cond} | {sum(bool(r['score']['detected']) for r in v)}/{len(v)} | "
                      f"{sum(bool(r['score']['clean']) for r in p)}/{len(p)} | {sum(r['score']['alarms'] for r in p)} | {', '.join(ends)} |")
     models = sorted({m for r in records for m in r["returned_models"]})
     lines += ["", f"Returned model ids: {', '.join(models) or '–'} (requested: {m.get('model')}). "

@@ -75,11 +75,11 @@ def new_run_dir(root: Path, kind: str) -> Path:
 
 
 def run_matrix(tasks: list[SecTask], conditions: list[str], reps: int, model, budget: CallBudget, out_dir: Path, *,
-               seed: int = 0, limits: DetectLimits = DetectLimits(), instructions: str | None = None,
+               seed: int = 0, limits: DetectLimits = DetectLimits(), instructions: str | None = None, variants=VARIANTS,
                api_retries: int = 2, retry_wait_s: float = 10.0, log=print, manifest_extra: dict | None = None) -> list[dict]:
     """Every task x variant x condition x repetition, in a seeded shuffled order. Writes JSONL as it goes."""
     instructions = read_instructions() if instructions is None else instructions
-    plan = [(t, v, c, r) for t in tasks for v in VARIANTS for c in conditions for r in range(1, reps + 1)]
+    plan = [(t, v, c, r) for t in tasks for v in variants for c in conditions for r in range(1, reps + 1)]
     random.Random(seed).shuffle(plan)
     manifest = {"created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": seed,
                 "synthetic": bool(getattr(model, "synthetic", False)), "tasks": [t.task_id for t in tasks],
