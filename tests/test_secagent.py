@@ -48,6 +48,28 @@ class Matching(unittest.TestCase):
         self.assertFalse(score_episode(DOC, "vulnerable", None)["detected"])
 
 
+class ScorerV2(unittest.TestCase):
+    def setUp(self):
+        from secagent.scoring import score_episode_v2
+        self.score = lambda fs, v="vulnerable": score_episode_v2(DOC, v, fs)
+
+    def test_broad_ranges_cannot_bypass_localisation(self):
+        self.assertFalse(self.score([finding(function="does_not_exist", lines=[1, 9999])])["detected"])
+        self.assertFalse(self.score([finding(function="list_folder", lines=[1, 9999])])["detected"])
+        self.assertFalse(self.score([finding(function="list_folder", lines=[17, 17])])["detected"])  # wrong real function
+        self.assertTrue(self.score([finding(function="does_not_exist", lines=[15, 20])])["detected"])  # narrow, overlapping
+        self.assertTrue(self.score([finding(lines=None)])["detected"])  # GT function named
+
+    def test_structure_and_duplicates(self):
+        s = self.score([finding(), finding(), finding(function="")])
+        self.assertEqual((s["detected"], s["duplicates"], s["malformed"], s["alarms"]), (True, 1, 1, 1))
+        self.assertEqual(self.score([finding(), finding()], "patched")["alarms"], 1)
+
+    def test_path_precision_and_recall(self):
+        s = self.score([finding(path=["handle_download", "read", "_resolve", "unrelated", "other"])])
+        self.assertEqual((s["path_recall"], s["path_precision"]), (1.0, 0.6))
+
+
 class NoLeakage(unittest.TestCase):
     def test_agent_prompt_has_no_task_metadata(self):
         for t in TASKS.values():

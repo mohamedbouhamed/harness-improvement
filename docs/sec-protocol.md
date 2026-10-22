@@ -152,6 +152,10 @@ of difficulty adjustment; the result is reported whatever it is.
 ## Change log
 
 - `sec-v1`: initial protocol.
+- `sec-v1.3` (2026-10-23, before the fresh evaluation set): **scorer v2** becomes the primary
+  scorer for all new runs (structure validation, duplicate collapsing, no broad-range
+  localisation, path precision and recall); v1 is still computed and stored. Historical results
+  keep v1 scores; post-hoc v2 rescoring is reported separately (docs/rescoring-v2.md).
 - `sec-v1.2` (after the first adaptation pilot): new editable surface `harness/verification.md`
   (empty = original harness, verified by replaying all historical none/T = 0 episodes), feedback
   proposer, acceptance rule extended with "twin findings and non-submissions not increased".

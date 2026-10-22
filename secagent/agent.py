@@ -22,7 +22,7 @@ from harness_mvp.model import CallBudget
 from harness_mvp.tools import cap
 from harness_mvp.workspace import WorkspaceError, normalize_rel
 
-from .scoring import score_episode
+from .scoring import score_episode, score_episode_v2
 from .tasks import SecTask
 
 HARNESS_DIR = Path(__file__).resolve().parent.parent / "harness"
@@ -297,6 +297,7 @@ def run_episode(task: SecTask, variant: str, model, budget: CallBudget, *, episo
         "synthetic": bool(getattr(model, "synthetic", False)), "started_at": started,
         "task_hashes": task.hashes(), "guidance_chars": len(guidance), "guidance_est_tokens": estimate_tokens(guidance),
         "end_reason": end_reason, "fatal": fatal, "findings": findings, "score": score,
+        "score_v2": score_episode_v2(task, variant, findings),
         "verification": {"enabled": bool(verification), "draft": draft,
                          "changed": None if draft is None else draft != findings},
         "model_calls": len(reqs), "tool_calls": tool_calls, "parse_errors": sum(1 for t in turns if t["parse_error"]),
