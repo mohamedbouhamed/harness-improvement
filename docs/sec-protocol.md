@@ -36,8 +36,10 @@ The two members of a pair are always in the same split.
 A finding `f` **matches** the GT `g` iff all three hold:
 
 1. **file**: `f.file` equals `g.file` after normalising (`./` stripped, POSIX separators);
-2. **location**: `f.function` equals `g.function` (a `Class.method` form matches on the last
-   component), **or** `f.lines` intersects the line span of `g.function`;
+2. **location**: `f.function` is one of `g.functions` (a `Class.method` form matches on the last
+   component), **or** `f.lines` intersects the line span of one of them. `g.functions` lists the
+   function whose validation is flawed and the function containing the sensitive operation (sink),
+   when they differ; both are correct localisations;
 3. **type**: `f.cwe` is in the accepted set of `g`'s weakness class (table below).
 
 The GT is matched at most once (first matching finding in submission order). Every other finding is
@@ -129,3 +131,5 @@ of difficulty adjustment; the result is reported whatever it is.
 ## Change log
 
 - `sec-v1`: initial protocol.
+- `sec-v1` amendment (before any task was written): GT location accepts the flawed-validation
+  function or the sink function (`g.functions`), instead of a single function.
