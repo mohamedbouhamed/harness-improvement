@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>codemap</title>
+<style>
+:root {
+  --bg: #0c0f14; --grid: #1a202b; --panel: #11151c; --panel2: #161b24; --line: #232a36; --line2: #2d3644;
+  --text: #d7dce5; --muted: #8b94a5; --faint: #5a6375;
+  --pkg: rgba(255,255,255,.012); --pkg-b: #222a37; --mod: #12161e; --mod-b: #273042; --mod-t: #9fb3d1;
+  --blk: #161b24; --blk-b: #2b3547; --blk-h: #1b2230; --top: #13171f; --cls: #141a24; --cls-b: #33405a;
+  --code: #c5cdd9; --kw: #c792ea; --str: #9ccc8f; --num: #f2b46d; --com: #5b687c; --fnc: #82aaff; --bi: #6fcfc4; --slf: #ef8a8a; --deco: #e0c46c;
+  --call: #5f7697; --in: #58a6ff; --out: #3fd09a; --ext: #e6a23c; --dyn: #8892a6; --ref: #b48ead; --ai: #b48cff; --ai-bg: rgba(180,140,255,.10);
+  --trace: #ffcc47; --trace-bg: rgba(255,204,71,.16); --taint: #ff7b5c; --taint-bg: rgba(255,123,92,.14);
+  --k-raise: #ff6b6b; --k-ret: #3fd09a; --k-ext: #e6a23c; --k-call: #58a6ff; --k-br: #ff79c6; --k-loop: #4fd3df; --k-try: #f09a5a; --k-asg: #6f7a8d;
+  --shadow: 0 8px 30px rgba(0,0,0,.45);
+  --mono: "SF Mono", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f5f7; --grid: #dcdfe5; --panel: #ffffff; --panel2: #f6f7f9; --line: #e3e6eb; --line2: #d5d9e0;
+    --text: #1d232d; --muted: #5c6575; --faint: #9aa2af;
+    --pkg: rgba(0,0,0,.015); --pkg-b: #d3d8e0; --mod: #fbfbfc; --mod-b: #cfd5df; --mod-t: #3d5478;
+    --blk: #ffffff; --blk-b: #cbd2dd; --blk-h: #f1f3f7; --top: #f8f9fb; --cls: #f7f8fb; --cls-b: #b9c3d3;
+    --code: #24292f; --kw: #8839ef; --str: #2f7d32; --num: #b65d00; --com: #8a94a3; --fnc: #1f5fd1; --bi: #08797a; --slf: #c2410c; --deco: #946200;
+    --call: #8597b3; --in: #1f6feb; --out: #128a5c; --ext: #b86e00; --dyn: #7b8496; --ref: #8a5a9e; --ai: #7c4ddb; --ai-bg: rgba(124,77,219,.08);
+    --trace: #c98a00; --trace-bg: rgba(255,196,0,.20); --taint: #d9481e; --taint-bg: rgba(255,110,64,.14);
+    --k-raise: #d92d2d; --k-ret: #128a5c; --k-ext: #b86e00; --k-call: #1f6feb; --k-br: #c0368a; --k-loop: #0b8a95; --k-try: #c46a1a; --k-asg: #8a94a3;
+    --shadow: 0 8px 30px rgba(20,30,50,.15);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.45 var(--sans); overflow: hidden; }
+button { font: inherit; color: inherit; background: var(--panel2); border: 1px solid var(--line2); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: color-mix(in srgb, var(--in) 18%, var(--panel2)); border-color: color-mix(in srgb, var(--in) 50%, var(--line2)); }
+button.ai { background: var(--ai-bg); border-color: color-mix(in srgb, var(--ai) 55%, var(--line2)); color: var(--ai); }
+a { color: var(--in); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, .mono { font-family: var(--mono); font-size: 11.5px; }
+
+#app { position: fixed; inset: 0; display: grid; grid-template-columns: 280px 1fr 400px; grid-template-rows: 46px 1fr; }
+#top { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 5; }
+.brand { font-weight: 650; letter-spacing: .2px; white-space: nowrap; }
+.brand b { color: var(--ai); font-weight: 700; }
+.brand span { color: var(--muted); font-weight: 500; margin-left: 6px; }
+#crumbs { flex: 1; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+#crumbs a { color: var(--muted); }
+#crumbs a:last-child { color: var(--text); }
+.search { position: relative; width: 320px; }
+#q { width: 100%; background: var(--panel2); border: 1px solid var(--line2); border-radius: 7px; color: var(--text); padding: 6px 10px; font: inherit; outline: none; }
+#q:focus { border-color: var(--in); }
+#results { position: absolute; top: 36px; left: 0; right: 0; background: var(--panel); border: 1px solid var(--line2); border-radius: 8px; box-shadow: var(--shadow); display: none; max-height: 420px; overflow: auto; }
+#results div { padding: 6px 10px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
+#results div.on, #results div:hover { background: var(--panel2); }
+#results small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+.tools label { color: var(--muted); font-size: 12px; display: flex; gap: 4px; align-items: center; cursor: pointer; }
+
+aside { background: var(--panel); overflow: auto; z-index: 4; }
+#left { border-right: 1px solid var(--line); padding: 10px 12px 30px; }
+#right { border-left: 1px solid var(--line); padding: 12px 14px 40px; }
+h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 18px 0 8px; font-weight: 650; display: flex; align-items: center; gap: 6px; }
+h3:first-child { margin-top: 4px; }
+.sect-ai h3 { color: var(--ai); }
+.list { display: flex; flex-direction: column; gap: 2px; }
+.item { padding: 5px 8px; border-radius: 6px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.item:hover { background: var(--panel2); }
+.item .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item small { color: var(--muted); margin-left: auto; white-space: nowrap; }
+.wt { border: 1px solid color-mix(in srgb, var(--ai) 30%, var(--line)); background: var(--ai-bg); border-radius: 8px; padding: 8px 10px; cursor: pointer; margin-bottom: 6px; }
+.wt:hover { border-color: var(--ai); }
+.wt b { display: block; font-weight: 600; }
+.wt small { color: var(--muted); display: block; margin-top: 2px; }
+.badge { font-size: 10px; font-weight: 700; letter-spacing: .5px; border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+.badge.ai { color: var(--ai); border: 1px solid color-mix(in srgb, var(--ai) 60%, transparent); }
+.badge.ver { color: var(--out); border: 1px solid color-mix(in srgb, var(--out) 55%, transparent); }
+.chip { display: inline-block; font-size: 10.5px; border-radius: 4px; padding: 0 5px; border: 1px solid var(--line2); color: var(--muted); white-space: nowrap; }
+.chip.resolved { color: var(--out); border-color: color-mix(in srgb, var(--out) 45%, transparent); }
+.chip.inferred { color: var(--in); border-color: color-mix(in srgb, var(--in) 45%, transparent); }
+.chip.dynamic { color: var(--dyn); border-style: dashed; }
+.chip.eff { color: var(--ext); border-color: color-mix(in srgb, var(--ext) 45%, transparent); }
+.legend { display: grid; grid-template-columns: 34px 1fr; gap: 5px 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.legend svg { width: 34px; height: 10px; }
+.glyphs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px 10px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.stat { color: var(--muted); font-size: 12px; }
+.stat b { color: var(--text); font-weight: 600; }
+.note { color: var(--muted); font-size: 12px; }
+.err { color: var(--k-raise); font-size: 12px; white-space: pre-wrap; }
+
+/* inspector */
+.insp-head { display: flex; gap: 8px; align-items: center; }
+.insp-head .kind { font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); border: 1px solid var(--line2); border-radius: 4px; padding: 1px 5px; }
+.insp-head h2 { margin: 0; font-size: 16px; font-weight: 650; word-break: break-all; }
+.where { color: var(--muted); font-size: 12px; margin-top: 3px; word-break: break-all; }
+.sig { font-family: var(--mono); font-size: 11.5px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; margin: 10px 0 6px; white-space: pre-wrap; word-break: break-word; }
+.doc { color: var(--muted); font-size: 12.5px; white-space: pre-wrap; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.params { display: flex; flex-wrap: wrap; gap: 5px; }
+.param { font-family: var(--mono); font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--taint) 45%, var(--line2)); color: var(--text); background: var(--taint-bg); border-radius: 5px; padding: 2px 7px; cursor: pointer; }
+.param:hover { border-color: var(--taint); }
+.layer { border-radius: 9px; padding: 2px 10px 10px; margin-top: 14px; }
+.layer.verified { border: 1px solid var(--line2); }
+.layer.ai { border: 1px dashed color-mix(in srgb, var(--ai) 60%, transparent); background: var(--ai-bg); }
+.layer > .lh { display: flex; align-items: center; gap: 8px; margin: -1px -2px 4px; padding-top: 8px; font-size: 11px; color: var(--muted); }
+.ev { display: flex; gap: 6px; padding: 1px 6px; border-radius: 4px; cursor: pointer; font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+.ev:hover { background: var(--panel2); }
+.ev .g { width: 14px; text-align: center; flex: none; }
+.ev .ln { color: var(--faint); width: 30px; text-align: right; flex: none; }
+.ev .t { overflow: hidden; text-overflow: ellipsis; }
+.ev.cur { background: var(--trace-bg); outline: 1px solid color-mix(in srgb, var(--trace) 60%, transparent); }
+.ev.dim { opacity: .55; }
+.ev.enter .t { color: var(--fnc); }
+.sinks .item small { margin-left: 0; }
+
+/* map */
+#viewport { position: relative; overflow: hidden; cursor: grab; background-color: var(--bg); background-image: radial-gradient(var(--grid) 1.1px, transparent 1.2px); touch-action: none; }
+#viewport.dragging { cursor: grabbing; }
+#world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --px: 1; }
+#boxes, #blocks, #overlays { position: absolute; left: 0; top: 0; }
+#wires, #aiwires { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+#overlays { pointer-events: none; }
+.box { position: absolute; border-radius: 14px; }
+.box.pkg { background: var(--pkg); border: 1px dashed var(--pkg-b); border-radius: 26px; }
+.box.mod { background: var(--mod); border: 1px solid var(--mod-b); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+.box.cls { background: var(--cls); border: 1px solid var(--cls-b); border-radius: 10px; }
+.box.extg { background: color-mix(in srgb, var(--ext) 5%, var(--mod)); border: 1px solid color-mix(in srgb, var(--ext) 28%, var(--mod-b)); }
+.lbl { position: absolute; left: 0; right: 0; bottom: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 650; pointer-events: auto; cursor: pointer; transform-origin: 0 100%; }
+.lbl.tiny { visibility: hidden; }
+#viewport.far .lbl small { display: none; }
+.pkg > .lbl { font-size: calc(18px * max(1, var(--px))); color: var(--muted); padding: 0 0 calc(24px * max(1, var(--px))) 14px; letter-spacing: .3px; }
+.mod > .lbl { font-size: calc(13px * max(1, var(--px))); color: var(--mod-t); padding: 0 0 calc(3px * max(1, var(--px))) 6px; }
+.mod > .lbl small, .pkg > .lbl small { color: var(--faint); font-weight: 500; margin-left: .6em; font-size: .8em; }
+.mhdr { position: absolute; left: 0; right: 0; top: 0; height: 40px; padding: 10px 16px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--line); cursor: pointer; }
+.mhdr b { color: var(--mod-t); font-size: 15px; margin-right: 8px; }
+.chdr { position: absolute; left: 0; right: 0; top: 0; height: 34px; padding: 7px 14px; font-weight: 650; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; color: var(--fnc); }
+.chdr small { font-weight: 500; color: var(--faint); margin-left: 6px; }
+.extg > .elbl { position: absolute; top: 10px; left: 14px; font-weight: 650; color: var(--ext); font-size: 13px; }
+.extg > .elbl small { color: var(--faint); font-weight: 500; margin-left: 6px; }
+
+.blk { position: absolute; background: var(--blk); border: 1px solid var(--blk-b); border-radius: 8px; overflow: hidden; cursor: pointer; transition: opacity .15s, box-shadow .15s; }
+.blk.top { background: var(--top); border-style: dashed; }
+.blk .hdr { position: absolute; left: 0; right: 0; top: 0; height: 30px; background: var(--blk-h); border-bottom: 1px solid var(--line); }
+.blk .ttl, .box.cls > .ttl { position: absolute; left: 0; top: 0; max-width: 100%; padding: 0 calc(10px * max(1, var(--px))); line-height: 2.2; font-size: calc(12px * max(1, var(--px))); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--blk-h); border-bottom-right-radius: 6px; z-index: 3; color: var(--fnc); }
+.box.cls > .ttl { display: none; }
+.blk .ttl small { color: var(--faint); font-weight: 500; margin-left: .5em; font-family: var(--mono); font-size: .85em; }
+.blk.top .ttl { color: var(--muted); font-style: italic; }
+.blk .ttl .ent { color: var(--out); font-style: normal; }
+.code { position: absolute; overflow: hidden; }
+.skel { position: absolute; left: 0; top: 0; }
+.skel path { fill: none; stroke-linecap: round; stroke-width: 6; }
+.skel .s-base { stroke: color-mix(in srgb, var(--code) 16%, transparent); }
+.bands { position: absolute; inset: 0; z-index: 0; }
+.band { position: absolute; left: 0; right: 0; }
+.band.trace { background: var(--trace-bg); box-shadow: inset 3px 0 0 var(--trace); }
+.band.taint { background: var(--taint-bg); box-shadow: inset 3px 0 0 var(--taint); }
+.band.ai { background: var(--ai-bg); box-shadow: inset 3px 0 0 var(--ai); }
+.band.pick { background: color-mix(in srgb, var(--in) 14%, transparent); box-shadow: inset 3px 0 0 var(--in); }
+.src { position: absolute; left: 0; top: 0; right: 0; z-index: 1; font: 11px/14px var(--mono); color: var(--code); white-space: pre; }
+.src .r { height: 14px; display: flex; }
+.src .r:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.src .no { width: 34px; flex: none; text-align: right; color: var(--faint); padding-right: 4px; user-select: none; }
+.src .mk { width: 16px; flex: none; text-align: center; font-weight: 700; user-select: none; }
+.src .tx { overflow: hidden; }
+.src .gap { color: var(--faint); }
+.t-kw { color: var(--kw); } .t-str { color: var(--str); } .t-num { color: var(--num); } .t-com { color: var(--com); font-style: italic; }
+.t-fn { color: var(--fnc); } .t-bi { color: var(--bi); } .t-self { color: var(--slf); } .t-deco { color: var(--deco); }
+.tv { text-decoration: underline 2px var(--taint); text-underline-offset: 2px; color: color-mix(in srgb, var(--taint) 70%, var(--code)); }
+.k-raise { color: var(--k-raise); } .k-ret { color: var(--k-ret); } .k-ext { color: var(--k-ext); } .k-call { color: var(--k-call); }
+.k-br { color: var(--k-br); } .k-loop { color: var(--k-loop); } .k-try { color: var(--k-try); } .k-asg { color: var(--k-asg); }
+.k-with, .k-def, .k-imp { color: var(--faint); }
+.skel .s-raise { stroke: color-mix(in srgb, var(--k-raise) 70%, transparent); } .skel .s-ret { stroke: color-mix(in srgb, var(--k-ret) 70%, transparent); }
+.skel .s-ext { stroke: color-mix(in srgb, var(--k-ext) 70%, transparent); } .skel .s-call { stroke: color-mix(in srgb, var(--k-call) 60%, transparent); }
+.skel .s-br { stroke: color-mix(in srgb, var(--k-br) 60%, transparent); } .skel .s-loop { stroke: color-mix(in srgb, var(--k-loop) 60%, transparent); }
+.skel .s-try { stroke: color-mix(in srgb, var(--k-try) 55%, transparent); }
+
+.nest { position: absolute; border: 1px dashed color-mix(in srgb, var(--fnc) 45%, transparent); border-radius: 6px; z-index: 2; pointer-events: none; }
+.nest > span { position: absolute; right: 4px; top: 2px; font: 600 10px var(--sans); color: var(--fnc); background: var(--blk); padding: 0 4px; border-radius: 3px; opacity: .85; }
+.ext { position: absolute; border-radius: 6px; background: color-mix(in srgb, var(--ext) 8%, var(--blk)); border: 1px solid color-mix(in srgb, var(--ext) 30%, var(--blk-b)); font: 11px/28px var(--mono); padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; color: var(--code); }
+.ext small { color: var(--ext); font-family: var(--sans); margin-left: 6px; }
+
+/* level of detail */
+#viewport.far .blk .ttl, #viewport.far .nest > span, #viewport.far .chdr, #viewport.far .mhdr, #viewport.far .ext { color: transparent; }
+#viewport.far .blk .ttl { background: transparent; }
+#viewport:not(.near) .src { display: none; }
+#viewport.near .skel.done { display: none; }
+#viewport:not(.far) .w.modw { display: none; }
+#viewport.far .w.fnw { display: none; }
+#viewport.far #world.focus .w.fnw.lit { display: inline; }
+
+/* wires */
+.w { fill: none; stroke-width: calc(1.3px * var(--px)); stroke: var(--call); opacity: .32; }
+.w.dyn { stroke: var(--dyn); stroke-dasharray: calc(6px * var(--px)) calc(5px * var(--px)); }
+.w.ref, .w.inh { stroke: var(--ref); stroke-dasharray: calc(2px * var(--px)) calc(4px * var(--px)); }
+.w.extw { stroke: var(--ext); display: none; }
+.w.inferred { opacity: .28; }
+.w.modw { stroke: var(--call); opacity: .45; stroke-linecap: round; }
+#world.show-ext .w.extw { display: inline; opacity: .18; }
+#world.no-dyn .w.dyn { display: none; }
+#world.no-ext .ext, #world.no-ext .box.extg { display: none; }
+#world.focus .w { opacity: .05; }
+#world.focus .w.lit { opacity: .95; display: inline; stroke-width: calc(2.2px * var(--px)); stroke-dasharray: calc(9px * var(--px)) calc(6px * var(--px)); animation: flow 1.1s linear infinite; }
+#world.focus .w.lit.in { stroke: var(--in); }
+#world.focus .w.lit.out { stroke: var(--out); }
+#world.focus .w.lit.extw { stroke: var(--ext); }
+#world .w.trail { opacity: .95 !important; display: inline !important; stroke: var(--trace) !important; stroke-width: calc(2.6px * var(--px)) !important; stroke-dasharray: calc(9px * var(--px)) calc(6px * var(--px)); animation: flow 1s linear infinite; }
+#world .w.trail.taint { stroke: var(--taint) !important; }
+@keyframes flow { to { stroke-dashoffset: calc(-15px * var(--px)); } }
+.aiw { fill: none; stroke: var(--ai); stroke-width: calc(2px * var(--px)); stroke-dasharray: calc(3px * var(--px)) calc(5px * var(--px)); opacity: .75; }
+.aiw.cur { stroke-width: calc(3px * var(--px)); opacity: 1; }
+
+#world.focus .blk:not(.lit), #world.focus .ext:not(.lit) { opacity: .3; }
+#world.dimall .blk:not(.lit), #world.dimall .ext:not(.lit) { opacity: .3; }
+.blk.lit.sel, .ext.lit.sel { box-shadow: 0 0 0 calc(2px * var(--px)) var(--in), 0 0 0 calc(6px * var(--px)) color-mix(in srgb, var(--in) 25%, transparent); }
+.blk.lit.caller { box-shadow: 0 0 0 calc(2px * var(--px)) var(--in); }
+.blk.lit.callee, .ext.lit.callee { box-shadow: 0 0 0 calc(2px * var(--px)) var(--out); }
+.blk.visited { box-shadow: 0 0 0 calc(1.5px * var(--px)) color-mix(in srgb, var(--trace) 55%, transparent); }
+.blk.cur { box-shadow: 0 0 0 calc(2.5px * var(--px)) var(--trace), 0 0 calc(30px * var(--px)) color-mix(in srgb, var(--trace) 35%, transparent); opacity: 1 !important; }
+.blk.aicur { box-shadow: 0 0 0 calc(2.5px * var(--px)) var(--ai), 0 0 calc(30px * var(--px)) color-mix(in srgb, var(--ai) 30%, transparent); opacity: 1 !important; }
+.nest.sel { border: calc(2px * var(--px)) solid var(--in); }
+
+.badge-n { position: absolute; transform: translate(-50%, -50%) scale(var(--bs, 1)); width: 22px; height: 22px; border-radius: 50%; font: 700 11px/22px var(--sans); text-align: center; color: #111; background: var(--trace); box-shadow: 0 0 0 2px var(--bg); }
+.badge-n.ai { background: var(--ai); color: #fff; }
+.pulse { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--trace); box-shadow: 0 0 18px 6px color-mix(in srgb, var(--trace) 60%, transparent); transform: translate(-50%, -50%) scale(var(--bs, 1)); }
+.bracket { position: absolute; border: calc(2px * var(--px)) solid var(--ai); border-right: none; border-radius: 4px 0 0 4px; }
+
+/* floating UI */
+#callout { position: absolute; width: 380px; display: none; z-index: 6; background: var(--panel); border: 1px solid var(--ai); border-radius: 12px; box-shadow: var(--shadow), 0 0 0 4px var(--ai-bg); padding: 12px 14px; }
+#callout .ch { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11.5px; }
+#callout h4 { margin: 6px 0 6px; font-size: 14.5px; }
+#callout .body { font-size: 13px; line-height: 1.55; }
+#callout .body .sym { color: var(--fnc); cursor: pointer; font-family: var(--mono); font-size: 12px; border-bottom: 1px dotted var(--fnc); }
+#callout .checks { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 3px; }
+#callout .chk { font-size: 11.5px; color: var(--muted); display: flex; gap: 6px; }
+#callout .chk.ok::before { content: "✓"; color: var(--out); font-weight: 700; }
+#callout .chk.bad::before { content: "⚠"; color: var(--ext); }
+#callout .src-link { font-size: 11.5px; margin-top: 6px; display: block; }
+#stepper { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 7; display: none; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line2); border-radius: 12px; box-shadow: var(--shadow); padding: 8px 10px; max-width: min(860px, calc(100% - 32px)); }
+#stepper.walk { border-color: var(--ai); }
+#stepper .desc { min-width: 0; max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+#stepper .count { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#banner { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 8; display: none; background: var(--panel); border: 1px solid var(--ext); border-radius: 10px; padding: 8px 12px; box-shadow: var(--shadow); gap: 10px; align-items: center; }
+#zoomind { position: absolute; right: 12px; bottom: 12px; z-index: 5; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+#help { position: absolute; inset: 0; z-index: 20; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; }
+#help .card { background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; padding: 18px 22px; max-width: 640px; box-shadow: var(--shadow); }
+#help table { border-collapse: collapse; font-size: 13px; }
+#help td { padding: 4px 10px 4px 0; vertical-align: top; }
+#help td:first-child { color: var(--muted); white-space: nowrap; }
+kbd { font: 11px var(--mono); border: 1px solid var(--line2); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+.spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--ai); border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 1100px) { #app { grid-template-columns: 0 1fr 360px; } #left { display: none; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand"><b>◈</b> codemap<span id="repo"></span></div>
+    <div id="crumbs"></div>
+    <div class="search"><input id="q" placeholder="Search functions, classes, modules…  ( / )" autocomplete="off" spellcheck="false"><div id="results"></div></div>
+    <div class="tools">
+      <label title="Show wires to external libraries for every block"><input type="checkbox" id="tg-ext"> all external wires</label>
+      <label title="Show edges whose target depends on runtime dispatch"><input type="checkbox" id="tg-dyn" checked> dynamic</label>
+      <label title="Mouse wheel zooms instead of panning"><input type="checkbox" id="tg-wheel"> wheel zooms</label>
+      <button id="btn-fit" title="Fit whole map (F)">Fit</button>
+      <button id="btn-help" title="Help (?)">?</button>
+    </div>
+  </header>
+  <aside id="left"></aside>
+  <main id="viewport">
+    <div id="world"><div id="boxes"></div><svg id="wires"></svg><div id="blocks"></div><svg id="aiwires"></svg><div id="overlays"></div></div>
+    <div id="callout"></div>
+    <div id="stepper"></div>
+    <div id="banner"></div>
+    <div id="zoomind"></div>
+  </main>
+  <aside id="right"></aside>
+</div>
+<div id="help"><div class="card">
+  <h3 style="margin-top:0">Navigating the map</h3>
+  <table>
+    <tr><td>Pan</td><td>drag, or two-finger scroll</td></tr>
+    <tr><td>Zoom</td><td>pinch, <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll, <kbd>+</kbd> <kbd>−</kbd> (or tick “wheel zooms”)</td></tr>
+    <tr><td>Read code</td><td>double-click a block to zoom in until the source is legible</td></tr>
+    <tr><td>Inspect</td><td>click a block: callers light up blue, callees green, externals amber</td></tr>
+    <tr><td>Go to definition</td><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd>-click a code line that calls project code</td></tr>
+    <tr><td>Trace execution</td><td>“Trace execution” in the inspector, then <kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd> to step</td></tr>
+    <tr><td>Trace data</td><td>click a parameter chip to follow that input through calls to its outputs</td></tr>
+    <tr><td>Walkthroughs</td><td>purple = AI interpretation, checked against the verified graph; everything else is from static analysis</td></tr>
+    <tr><td>Other</td><td><kbd>/</kbd> search · <kbd>F</kbd> fit · <kbd>Esc</kbd> clear · <kbd>?</kbd> this help</td></tr>
+  </table>
+  <p class="note">Static analysis is approximate: Python is dynamic. Edges marked <span class="chip dynamic">dynamic</span> are candidates chosen by name, not proven targets.</p>
+</div></div>
+<script id="codemap-data" type="application/json">__CODEMAP_JSON__</script>
+<script>
+'use strict';
+const G = JSON.parse(document.getElementById('codemap-data').textContent);
+const LY = G.layout, LH = LY.LINE_H, HDR = LY.HEADER, GUT = LY.GUTTER, CW = LY.CHAR_W;
+const SVGNS = 'http://www.w3.org/2000/svg';
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const push = (m, k, v) => { let a = m.get(k); if (!a) m.set(k, a = []); a.push(v); };
+const short = id => { const n = byId.get(id); return n ? (n.kind === 'toplevel' ? n.module.split('.').pop() + ' (top level)' : n.qual || n.name) : id; };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// ---------------------------------------------------------------- graph indexes
+const byId = new Map();
+G.nodes.forEach(n => byId.set(n.id, n));
+(G.ext_groups || []).forEach(g => byId.set(g.id, g));
+const CODEK = new Set(['function', 'method', 'toplevel']);
+const outE = new Map(), inE = new Map();
+G.edges.forEach((e, i) => { e.i = i; push(outE, e.s, e); push(inE, e.t, e); });
+const kids = new Map();
+G.nodes.forEach(n => { if (n.parent) push(kids, n.parent, n.id); });
+const isTest = id => /^tests?(\.|:|$)/.test((byId.get(id) || {}).module || '');
+function hostOf(n) { if (typeof n === 'string') n = byId.get(n); while (n && n.host) n = byId.get(n.host); return n; }
+const hosts = G.nodes.filter(n => n.rows && n.cy != null);
+hosts.forEach(h => { h._ri = new Map(); h.rows.forEach((r, i) => { if (r != null) h._ri.set(r, i); }); });
+function rowIndex(h, line) {
+  if (h._ri.has(line)) return h._ri.get(line);
+  let best = 0; for (const [r, i] of h._ri) if (r <= line) best = Math.max(best, i); return best;
+}
+const lineTop = (h, line) => h.cy + rowIndex(h, line) * LH;
+const codeW = h => h.kind === 'class' ? h.w - 28 : h.w;
+function nestedOf(id) { const out = []; (kids.get(id) || []).forEach(k => { const n = byId.get(k); if (n.host) { out.push(n); out.push(...nestedOf(k)); } }); return out; }
+function innermostAt(h, line) {
+  let best = h;
+  for (const n of nestedOf(h.id)) if (n.line <= line && line <= n.end && (n.end - n.line) <= (best.end - best.line)) best = n;
+  return best;
+}
+const EK = {
+  raise: { g: '!', c: 'raise', p: 9, label: 'raises' }, return: { g: '⏎', c: 'ret', p: 8, label: 'returns' }, yield: { g: '⇡', c: 'ret', p: 8, label: 'yields' },
+  external: { g: '⇗', c: 'ext', p: 7, label: 'external call' }, call: { g: '→', c: 'call', p: 6, label: 'calls project code' },
+  branch: { g: '◆', c: 'br', p: 5, label: 'branch' }, loop: { g: '↻', c: 'loop', p: 5, label: 'loop' }, assert: { g: '◆', c: 'br', p: 4, label: 'assert' },
+  try: { g: '⚑', c: 'try', p: 4, label: 'try/finally' }, except: { g: '⚑', c: 'try', p: 4, label: 'except' }, jump: { g: '↷', c: 'br', p: 3, label: 'break/continue' },
+  with: { g: '◫', c: 'with', p: 3, label: 'with' }, assign: { g: '=', c: 'asg', p: 2, label: 'assigns / transforms data' },
+  def: { g: 'ƒ', c: 'def', p: 1, label: 'defines' }, import: { g: '⇣', c: 'imp', p: 1, label: 'import' }, expr: { g: '·', c: 'asg', p: 1, label: 'expression' },
+};
+function evKinds(n, ev) {
+  const ks = [ev.k];
+  for (const ci of ev.c) { const c = n.calls[ci]; if (c.kind === 'external') ks.push('external'); else if (['call', 'instantiate', 'dynamic'].includes(c.kind)) ks.push('call'); }
+  return ks;
+}
+function evTop(n, ev) { return evKinds(n, ev).reduce((a, k) => (EK[k] && EK[k].p > (EK[a] ? EK[a].p : 0)) ? k : a, 'expr'); }
+const hostEvents = new Map();
+hosts.forEach(h => {
+  const m = new Map();
+  [h, ...nestedOf(h.id)].forEach(n => (n.events || []).forEach((ev, i) => push(m, ev.l, { n, ev, i })));
+  hostEvents.set(h.id, m);
+});
+
+// ---------------------------------------------------------------- DOM build
+const vp = $('#viewport'), world = $('#world'), boxesL = $('#boxes'), blocksL = $('#blocks'), wires = $('#wires'), over = $('#overlays');
+const elOf = new Map(), codeOf = new Map(), labelEls = [];
+function place(e, n) { e.style.left = n.x + 'px'; e.style.top = n.y + 'px'; e.style.width = n.w + 'px'; e.style.height = n.h + 'px'; }
+$('#repo').textContent = G.repo;
+document.title = 'codemap · ' + G.repo;
+
+G.nodes.filter(n => n.kind === 'package').forEach(p => {
+  const e = mk('div', 'box pkg'); place(e, p);
+  const lb = mk('div', 'lbl', esc(p.name) + '<small>package</small>'); e.append(lb); labelEls.push([lb, p]);
+  boxesL.append(e); elOf.set(p.id, e);
+});
+G.nodes.filter(n => n.kind === 'module').forEach(m => {
+  const e = mk('div', 'box mod'); place(e, m); e.dataset.id = m.id;
+  const lb = mk('div', 'lbl', esc(m.name) + `<small>${esc(m.file)}</small>`); lb.dataset.id = m.id; e.append(lb); labelEls.push([lb, m]);
+  const h = mk('div', 'mhdr', `<b>${esc(m.name)}</b>${esc(m.doc || '')}`); h.dataset.id = m.id; e.append(h);
+  boxesL.append(e); elOf.set(m.id, e);
+});
+G.nodes.filter(n => n.kind === 'class').forEach(c => {
+  const e = mk('div', 'box cls'); place(e, c); e.dataset.id = c.id;
+  const h = mk('div', 'chdr', `class ${esc(c.name)}<small>${esc((c.sig || '').replace(/^class \w+/, ''))}</small>`); h.dataset.id = c.id; e.append(h);
+  const t = mk('div', 'ttl', esc(c.name)); e.append(t);
+  const code = mk('div', 'code'); Object.assign(code.style, { left: (c.cx - c.x) + 'px', top: (c.cy - c.y) + 'px', width: codeW(c) + 'px', height: c.rows.length * LH + 'px' });
+  code.dataset.id = c.id; e.append(code); codeOf.set(c.id, code);
+  boxesL.append(e); elOf.set(c.id, e);
+});
+(G.ext_groups || []).forEach(g => {
+  const e = mk('div', 'box extg'); place(e, g);
+  e.append(mk('div', 'elbl', esc(g.name) + `<small>${g.stdlib ? 'stdlib' : 'third-party'}</small>`));
+  boxesL.append(e); elOf.set(g.id, e);
+});
+hosts.filter(h => h.kind !== 'class').forEach(n => {
+  const e = mk('div', 'blk' + (n.kind === 'toplevel' ? ' top' : '')); place(e, n); e.dataset.id = n.id;
+  e.append(mk('div', 'hdr'));
+  const params = n.kind === 'toplevel' ? '' : `<small>(${esc((n.params || []).filter(p => p.n !== 'self' && p.n !== 'cls').map(p => (p.k === 'var' ? '*' : p.k === 'varkw' ? '**' : '') + p.n).join(', '))})</small>`;
+  const ent = n.entry && n.entry !== 'test' ? ` <span class="ent">▶ ${esc(n.entry)}</span>` : '';
+  const t = mk('div', 'ttl', (n.kind === 'toplevel' ? esc(n.module.split('.').pop()) + ' · top level' : esc(n.name) + params) + ent);
+  t.title = n.sig || n.id; e.append(t);
+  const code = mk('div', 'code'); Object.assign(code.style, { left: '0px', top: HDR + 'px', width: n.w + 'px', height: n.rows.length * LH + 'px' });
+  code.dataset.id = n.id; e.append(code); codeOf.set(n.id, code);
+  blocksL.append(e); elOf.set(n.id, e);
+});
+G.nodes.filter(n => n.host).forEach(n => {
+  const e = mk('div', 'nest', `<span>ƒ ${esc(n.name)}</span>`); place(e, n); e.dataset.id = n.id;
+  blocksL.append(e); elOf.set(n.id, e);
+});
+G.nodes.filter(n => n.kind === 'external').forEach(n => {
+  const e = mk('div', 'ext', esc(n.name) + (n.effect ? `<small>${esc(n.effect)}</small>` : '')); place(e, n); e.dataset.id = n.id; e.title = n.name;
+  blocksL.append(e); elOf.set(n.id, e);
+});
+
+// skeletons: one bar per source line, colored by the most significant event on that line
+hosts.forEach(h => {
+  const lines = G.files[h.file].lines, evs = hostEvents.get(h.id);
+  const paths = {};
+  h.rows.forEach((r, i) => {
+    if (r == null) return;
+    const s = lines[r - 1] || ''; const t = s.trimStart(); if (!t) return;
+    const ind = s.length - t.length; const len = Math.min(t.trimEnd().length, 130);
+    let cls = 's-base';
+    const here = evs.get(r);
+    if (here) { const k = here.map(o => evTop(o.n, o.ev)).sort((a, b) => EK[b].p - EK[a].p)[0]; if (EK[k] && EK[k].p >= 4) cls = 's-' + EK[k].c; }
+    if (t.startsWith('#')) cls = 's-base';
+    (paths[cls] = paths[cls] || []).push(`M${GUT + ind * CW} ${i * LH + LH / 2}h${Math.max(4, len * CW)}`);
+  });
+  const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'skel');
+  svg.setAttribute('width', codeW(h)); svg.setAttribute('height', h.rows.length * LH);
+  for (const [cls, d] of Object.entries(paths)) { const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('class', cls); p.setAttribute('d', d.join('')); svg.append(p); }
+  const bands = mk('div', 'bands');
+  codeOf.get(h.id).append(bands, svg);
+});
+
+// ---------------------------------------------------------------- syntax highlighting
+const KW = new Set('False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case'.split(' '));
+const BI = new Set('print len range dict list set tuple str int float bool bytes isinstance issubclass getattr setattr hasattr sorted reversed min max sum any all enumerate zip open super type next iter map filter repr round abs id hash vars dir object Exception ValueError KeyError TypeError RuntimeError OSError SystemExit'.split(' '));
+const TOK = /("""|''')|([rRbBuUfF]{0,2})("(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?)|(#.*$)|(\b\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?j?\b)|(@[\w.]+)|([A-Za-z_]\w*)|(\s+)|(.)/gy;
+function highlight(line, st, tainted) {
+  let out = '', i = 0;
+  if (st.tq) {
+    const end = line.indexOf(st.tq);
+    if (end < 0) return `<span class="t-str">${esc(line)}</span>`;
+    out += `<span class="t-str">${esc(line.slice(0, end + 3))}</span>`; i = end + 3; st.tq = null;
+  }
+  TOK.lastIndex = i; let m, prev = '';
+  while (TOK.lastIndex < line.length && (m = TOK.exec(line))) {
+    const [all, tq, , str, com, num, deco, id] = m;
+    if (tq) {
+      const rest = line.slice(TOK.lastIndex), end = rest.indexOf(tq);
+      if (end < 0) { out += `<span class="t-str">${esc(tq + rest)}</span>`; st.tq = tq; return out; }
+      out += `<span class="t-str">${esc(tq + rest.slice(0, end + 3))}</span>`; TOK.lastIndex += end + 3; continue;
+    }
+    if (str) out += `<span class="t-str">${esc(all)}</span>`;
+    else if (com) out += `<span class="t-com">${esc(com)}</span>`;
+    else if (num) out += `<span class="t-num">${esc(num)}</span>`;
+    else if (deco) out += `<span class="t-deco">${esc(deco)}</span>`;
+    else if (id) {
+      let cls = KW.has(id) ? 't-kw' : (id === 'self' || id === 'cls') ? 't-self' : (prev === 'def' || prev === 'class') ? 't-fn' : BI.has(id) ? 't-bi' : '';
+      if (tainted && tainted.has(id)) cls += ' tv';
+      out += cls ? `<span class="${cls}">${id}</span>` : id;
+    } else out += esc(all);
+    if (id) prev = id; else if (!/^\s+$/.test(all)) prev = '';
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- code rendering (lazy)
+const rendered = new Set();
+function renderCode(h) {
+  const code = codeOf.get(h.id); if (!code) return;
+  let src = code.querySelector('.src'); if (src) src.remove();
+  const lines = G.files[h.file].lines, evs = hostEvents.get(h.id), st = { tq: null };
+  const tainted = state.trace && state.trace.taint ? taintNamesFor(h) : null;
+  const html = h.rows.map(r => {
+    if (r == null) { st.tq = null; return '<div class="r gap"><span class="no"></span><span class="mk"></span><span class="tx">⋯</span></div>'; }
+    let mkr = '', title = '';
+    const here = evs.get(r);
+    if (here) {
+      const k = here.map(o => evTop(o.n, o.ev)).sort((a, b) => EK[b].p - EK[a].p)[0];
+      if (EK[k] && EK[k].p >= 2) { mkr = `<span class="mk k-${EK[k].c}">${EK[k].g}</span>`; title = here.map(o => evTitle(o.n, o.ev)).join('\n'); }
+    }
+    return `<div class="r" data-l="${r}"${title ? ` title="${esc(title)}"` : ''}><span class="no">${r}</span>${mkr || '<span class="mk"></span>'}<span class="tx">${highlight(lines[r - 1] || '', st, tainted) || ' '}</span></div>`;
+  }).join('');
+  src = mk('div', 'src', html); code.append(src);
+  code.querySelector('.skel').classList.add('done');
+  rendered.add(h.id);
+}
+function evTitle(n, ev) {
+  const parts = [EK[ev.k] ? EK[ev.k].label : ev.k];
+  for (const ci of ev.c) {
+    const c = n.calls[ci];
+    if (c.kind === 'call' || c.kind === 'instantiate') parts.push('→ ' + short(c.target) + ` [${c.conf}]`);
+    else if (c.kind === 'dynamic') parts.push('→ ' + c.cands.map(short).join(' | ') + ' [dynamic]');
+    else if (c.kind === 'external') parts.push('⇗ ' + c.name + (c.effect ? ` (${c.effect})` : ''));
+  }
+  if (ev.w.length) parts.push('writes: ' + ev.w.join(', '));
+  return parts.join('  ');
+}
+function invalidateCode() { rendered.clear(); hosts.forEach(h => { const s = codeOf.get(h.id)?.querySelector('.src'); if (s) s.remove(); codeOf.get(h.id)?.querySelector('.skel').classList.remove('done'); }); scheduleVisible(); }
+
+// ---------------------------------------------------------------- camera
+const cam = { x: 0, y: 0, k: 0.1 };
+let lod = '';
+function applyCam() {
+  world.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.k})`;
+  world.style.setProperty('--px', (1 / cam.k).toFixed(4));
+  let g = 24 * cam.k; while (g < 14) g *= 2; while (g > 56) g /= 2;
+  vp.style.backgroundSize = `${g}px ${g}px`; vp.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
+  const next = cam.k < 0.11 ? 'far' : cam.k < 0.5 ? 'mid' : 'near';
+  if (next !== lod) { vp.classList.remove('far', 'mid', 'near'); vp.classList.add(next); lod = next; }
+  over.style.setProperty('--bs', (1 / cam.k).toFixed(4));
+  for (const [lb, n] of labelEls) lb.classList.toggle('tiny', n.w * cam.k < 70 || n.h * cam.k < 16);
+  $('#zoomind').textContent = Math.round(cam.k * 100) + '%';
+  scheduleVisible(); positionCallout(); saveCamSoon();
+}
+let visPending = false;
+function scheduleVisible() {
+  if (visPending) return; visPending = true;
+  requestAnimationFrame(() => {
+    visPending = false; if (lod !== 'near') return;
+    const r = vp.getBoundingClientRect();
+    const x0 = -cam.x / cam.k, y0 = -cam.y / cam.k, x1 = x0 + r.width / cam.k, y1 = y0 + r.height / cam.k;
+    let budget = 40;
+    for (const h of hosts) {
+      if (rendered.has(h.id)) continue;
+      if (h.x > x1 || h.x + h.w < x0 || h.y > y1 || h.y + h.h < y0) continue;
+      renderCode(h); if (--budget <= 0) { scheduleVisible(); break; }
+    }
+  });
+}
+function vpSize() { const r = vp.getBoundingClientRect(); return { w: r.width, h: r.height }; }
+function fitRect(x, y, w, h, opts = {}) {
+  const s = vpSize(), pad = opts.pad ?? 60, rightReserve = opts.reserve || 0;
+  const k = clamp(Math.min((s.w - rightReserve - 2 * pad) / w, (s.h - 2 * pad) / h), opts.minK ?? 0.02, opts.maxK ?? 1.6);
+  return { k, x: (s.w - rightReserve) / 2 - (x + w / 2) * k, y: s.h / 2 - (y + h / 2) * k };
+}
+let anim = null;
+const INSTANT = /(^|[#&])instant\b/.test(location.hash) || matchMedia('(prefers-reduced-motion: reduce)').matches;
+function flyTo(t, ms = 650) {
+  if (anim) cancelAnimationFrame(anim.raf);
+  if (INSTANT) { Object.assign(cam, { x: t.x, y: t.y, k: t.k }); applyCam(); return; }
+  const s = vpSize(), from = { ...cam };
+  const c0 = { x: (s.w / 2 - from.x) / from.k, y: (s.h / 2 - from.y) / from.k }, c1 = { x: (s.w / 2 - t.x) / t.k, y: (s.h / 2 - t.y) / t.k };
+  const dist = Math.hypot(c1.x - c0.x, c1.y - c0.y);
+  const kOut = Math.min(from.k, t.k, s.w / Math.max(1, dist * 1.4));
+  const dip = Math.max(0, Math.log(Math.min(from.k, t.k)) - Math.log(kOut));
+  const t0 = performance.now();
+  const step = now => {
+    const p = clamp((now - t0) / ms, 0, 1), e = p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    const lk = Math.log(from.k) + (Math.log(t.k) - Math.log(from.k)) * e - dip * Math.sin(Math.PI * e);
+    const k = Math.exp(lk), cx = c0.x + (c1.x - c0.x) * e, cy = c0.y + (c1.y - c0.y) * e;
+    cam.k = k; cam.x = s.w / 2 - cx * k; cam.y = s.h / 2 - cy * k; applyCam();
+    if (p < 1) anim.raf = requestAnimationFrame(step); else anim = null;
+  };
+  anim = { raf: requestAnimationFrame(step) };
+}
+function fitAll(instant) { const b = G.bounds, t = fitRect(b.x, b.y, b.w, b.h, { pad: 30 }); if (instant) { Object.assign(cam, t); applyCam(); } else flyTo(t); }
+function zoomAt(f, sx, sy) { const k = clamp(cam.k * f, 0.015, 3); const wx = (sx - cam.x) / cam.k, wy = (sy - cam.y) / cam.k; cam.k = k; cam.x = sx - wx * k; cam.y = sy - wy * k; applyCam(); }
+function focusNode(id, opts = {}) {
+  const n = byId.get(id); if (!n || n.x == null) return;
+  const s = vpSize();
+  if (opts.read && CODEK.has(n.kind)) {
+    const h = hostOf(n), k = clamp(Math.min((s.w - 120) / h.w, 1.25), 0.6, 1.25);
+    const ht = Math.min(n.h, (s.h - 120) / k);
+    flyTo({ k, x: s.w / 2 - (n.x + Math.min(n.w, h.w) / 2) * k, y: 60 - n.y * k + (ht < n.h ? 0 : (s.h - 120 - n.h * k) / 2) });
+  } else flyTo(fitRect(n.x, n.y, n.w, n.h, { maxK: opts.maxK ?? 1.1, pad: 80 }));
+}
+function focusLine(h, line, opts = {}) {
+  const s = vpSize(), k = opts.k ?? clamp(cam.k < 0.6 ? 0.95 : cam.k, 0.6, 1.4);
+  const y = lineTop(h, line), reserve = opts.reserve || 0;
+  flyTo({ k, x: (s.w - reserve) / 2 - (h.x + Math.min(h.w, (s.w - reserve - 80) / k) / 2) * k, y: s.h * 0.42 - y * k }, opts.ms ?? 600);
+}
+let camTimer = null;
+function saveCamSoon() { clearTimeout(camTimer); camTimer = setTimeout(() => { try { sessionStorage.setItem('codemap.cam.' + G.repo, JSON.stringify(cam)); } catch (e) { } }, 300); }
+
+// ---------------------------------------------------------------- input
+let drag = null;
+vp.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || e.target.closest('#callout,#stepper,#banner')) return;
+  drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false, target: e.target };
+  vp.setPointerCapture(e.pointerId);
+});
+vp.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+  drag.moved = true; vp.classList.add('dragging');
+  if (anim) { cancelAnimationFrame(anim.raf); anim = null; }
+  cam.x = drag.cx + dx; cam.y = drag.cy + dy; applyCam();
+});
+vp.addEventListener('pointerup', e => {
+  if (!drag) return; const d = drag; drag = null; vp.classList.remove('dragging');
+  if (!d.moved) onClick(d.target, e);
+});
+vp.addEventListener('wheel', e => {
+  if (e.target.closest('#callout')) return;
+  e.preventDefault();
+  if (anim) { cancelAnimationFrame(anim.raf); anim = null; }
+  const r = vp.getBoundingClientRect();
+  const zoom = e.ctrlKey || e.metaKey || $('#tg-wheel').checked;
+  if (zoom) { const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; zoomAt(Math.exp(-dy * (e.ctrlKey && !$('#tg-wheel').checked ? 0.012 : 0.0025)), e.clientX - r.left, e.clientY - r.top); }
+  else { cam.x -= e.deltaX; cam.y -= e.deltaY; applyCam(); }
+}, { passive: false });
+vp.addEventListener('dblclick', e => {
+  const b = e.target.closest('[data-id]'); if (!b) return;
+  const n = byId.get(b.dataset.id);
+  if (n.kind === 'module' || n.kind === 'class') focusNode(n.id); else focusNode(n.id, { read: true });
+});
+function onClick(target, e) {
+  const row = target.closest('.r[data-l]'), b = target.closest('[data-id]');
+  if (!b) { if (state.mode === 'explore') select(null); return; }
+  let id = b.dataset.id, n = byId.get(id);
+  if (row && CODEK.has(n.kind)) {
+    const line = +row.dataset.l, inner = innermostAt(n, line);
+    const evs = (hostEvents.get(n.id).get(line) || []);
+    if (e.metaKey || e.ctrlKey) {
+      for (const o of evs) for (const ci of o.ev.c) { const c = o.n.calls[ci]; const t = c.target && byId.get(c.target) ? c.target : (c.cands || [])[0]; if (t && byId.get(t) && c.kind !== 'external') { select(t); focusNode(t, { read: true }); return; } else if (c.kind === 'external') { select(c.target); focusNode(c.target); return; } }
+    }
+    if (state.mode === 'explore' || state.sel !== inner.id) select(inner.id, { line });
+    else markLine(inner.id, line);
+    return;
+  }
+  if (n.kind === 'package') return;
+  select(id);
+}
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea')) { if (e.key === 'Escape') { e.target.blur(); hideResults(); } return; }
+  if (e.key === '/') { e.preventDefault(); $('#q').focus(); $('#q').select(); }
+  else if (e.key === 'Escape') { if ($('#help').style.display === 'flex') $('#help').style.display = 'none'; else if (state.mode !== 'explore') exitMode(); else select(null); }
+  else if (e.key === 'f' || e.key === 'F') fitAll();
+  else if (e.key === '?') toggleHelp();
+  else if (e.key === '+' || e.key === '=') { const s = vpSize(); zoomAt(1.3, s.w / 2, s.h / 2); }
+  else if (e.key === '-' || e.key === '_') { const s = vpSize(); zoomAt(1 / 1.3, s.w / 2, s.h / 2); }
+  else if (state.mode !== 'explore' && (e.key === 'ArrowRight' || e.key === ' ')) { e.preventDefault(); stepBy(1); }
+  else if (state.mode !== 'explore' && e.key === 'ArrowLeft') { e.preventDefault(); stepBy(-1); }
+});
+function toggleHelp() { const h = $('#help'); h.style.display = h.style.display === 'flex' ? 'none' : 'flex'; }
+$('#help').addEventListener('click', toggleHelp);
+$('#btn-help').onclick = toggleHelp;
+$('#btn-fit').onclick = () => fitAll();
+$('#tg-ext').onchange = e => world.classList.toggle('show-ext', e.target.checked);
+$('#tg-dyn').onchange = e => { world.classList.toggle('no-dyn', !e.target.checked); state.followDyn = e.target.checked; if (state.trace) rebuildTrace(); };
+window.addEventListener('resize', () => applyCam());
+
+// ---------------------------------------------------------------- wires
+const wireOf = new Map(), wireByPair = new Map();
+function anchorOut(id, line) {
+  const n = byId.get(id), h = hostOf(n);
+  if (!h || h.cy == null) return n && n.x != null ? { x: n.x + n.w, y: n.y + 17 } : null;
+  return { x: h.x + h.w, y: lineTop(h, line || n.line) + LH / 2 };
+}
+function anchorIn(id) {
+  const n = byId.get(id); if (!n || n.x == null) return null;
+  if (n.kind === 'external') return { x: n.x, y: n.y + n.h / 2 };
+  if (n.host) return { x: n.x, y: n.y + 8 };
+  return { x: n.x, y: n.y + (n.kind === 'class' ? 17 : HDR / 2) };
+}
+function curve(a, b) {
+  const dx = b.x - a.x;
+  if (dx > 80) { const c = Math.max(50, dx * 0.45); return `M${a.x},${a.y}C${a.x + c},${a.y} ${b.x - c},${b.y} ${b.x},${b.y}`; }
+  const off = 90 + Math.min(500, Math.abs(b.y - a.y) * 0.3) + Math.min(400, Math.abs(dx) * 0.2);
+  return `M${a.x},${a.y}C${a.x + off},${a.y} ${b.x - off},${b.y} ${b.x},${b.y}`;
+}
+function svgPath(d, cls, parent = wires) { const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); p.setAttribute('class', cls); parent.append(p); return p; }
+(function buildWires() {
+  const b = G.bounds; wires.setAttribute('width', b.x + b.w); wires.setAttribute('height', b.y + b.h);
+  const gMod = document.createElementNS(SVGNS, 'g'), gFn = document.createElementNS(SVGNS, 'g'), gExt = document.createElementNS(SVGNS, 'g');
+  wires.append(gMod, gExt, gFn);
+  const modAgg = new Map();
+  for (const e of G.edges) {
+    const s = byId.get(e.s), t = byId.get(e.t); if (!s || !t) continue;
+    if (['call', 'instantiate', 'reference', 'external', 'inherit'].includes(e.kind)) {
+      const a = e.kind === 'inherit' ? { x: s.x + s.w, y: s.y + 17 } : anchorOut(e.s, e.lines[0]), z = anchorIn(e.t);
+      if (!a || !z) continue;
+      const cls = ['w', 'fnw', e.kind === 'external' ? 'extw' : e.kind === 'reference' ? 'ref' : e.kind === 'inherit' ? 'inh' : '', e.conf === 'dynamic' ? 'dyn' : '', e.conf].filter(Boolean).join(' ');
+      const p = svgPath(curve(a, z), cls, e.kind === 'external' ? gExt : gFn);
+      wireOf.set(e.i, p); if (!wireByPair.has(e.s + '|' + e.t)) wireByPair.set(e.s + '|' + e.t, p);
+    }
+    if (['call', 'instantiate', 'import'].includes(e.kind) && s.module && t.module && s.module !== t.module) {
+      const key = s.module + '|' + t.module; modAgg.set(key, (modAgg.get(key) || 0) + (e.kind === 'import' ? 0.5 : 1));
+    }
+  }
+  for (const [key, w] of modAgg) {
+    const [a, b2] = key.split('|').map(id => byId.get(id));
+    const p = svgPath(curve({ x: a.x + a.w, y: a.y + a.h / 2 }, { x: b2.x, y: b2.y + 40 }), 'w modw');
+    p.style.strokeWidth = `calc(${(1 + Math.log2(1 + w) * 0.9).toFixed(1)}px * var(--px))`;
+    p.dataset.mods = key;
+  }
+})();
+
+// ---------------------------------------------------------------- state & selection
+const state = { mode: 'explore', sel: null, trace: null, walk: null, followDyn: true, pick: null };
+function clearMarks() {
+  world.classList.remove('focus', 'dimall');
+  document.querySelectorAll('.lit,.sel,.caller,.callee,.in,.out,.visited,.cur,.aicur').forEach(e => e.classList.remove('lit', 'sel', 'caller', 'callee', 'in', 'out', 'visited', 'cur', 'aicur'));
+  document.querySelectorAll('.w.trail').forEach(e => e.classList.remove('trail', 'taint'));
+}
+function lightNode(id, role) {
+  const n = byId.get(id); if (!n) return;
+  const e = elOf.get(id), h = hostOf(n);
+  if (h && elOf.get(h.id)) elOf.get(h.id).classList.add('lit');
+  if (e) { e.classList.add('lit'); if (role) e.classList.add(role); }
+  if (n.kind === 'class' || n.kind === 'module') (kids.get(id) || []).forEach(k => lightNode(k));
+}
+function select(id, opts = {}) {
+  state.sel = id; state.pick = null;
+  if (state.mode === 'explore') clearMarks();
+  setBands('pick', []);
+  if (!id) { renderInspector(null); updateCrumbs(null); updateHash(); return; }
+  const n = byId.get(id);
+  if (state.mode === 'explore') {
+    world.classList.add('focus');
+    lightNode(id, 'sel');
+    const ids = new Set([id]);
+    if (n.kind === 'class') nestedIds(id).forEach(x => ids.add(x));
+    if (n.kind === 'module') G.nodes.forEach(x => { if (x.module === id && x.kind !== 'module') ids.add(x.id); });
+    const group = ids.size > 1;  // module/class selection: project wires only, externals are listed in the panel
+    for (const sid of ids) {
+      for (const e of outE.get(sid) || []) { const w = wireOf.get(e.i); if (w && !ids.has(e.t) && !(group && e.kind === 'external')) { w.classList.add('lit', 'out'); lightNode(e.t, 'callee'); } }
+      for (const e of inE.get(sid) || []) { const w = wireOf.get(e.i); if (w && !ids.has(e.s)) { w.classList.add('lit', 'in'); lightNode(e.s, 'caller'); } }
+    }
+    if (n.kind === 'module') document.querySelectorAll('.w.modw').forEach(p => { const [a, b] = p.dataset.mods.split('|'); if (a === id || b === id) p.classList.add('lit', a === id ? 'out' : 'in'); });
+  }
+  if (opts.line) markLine(id, opts.line);
+  renderInspector(n); updateCrumbs(n); updateHash();
+}
+function nestedIds(id) { const out = []; (kids.get(id) || []).forEach(k => { out.push(k); out.push(...nestedIds(k)); }); return out; }
+function markLine(id, line) {
+  const n = byId.get(id), h = hostOf(n); if (!h) return;
+  const evs = (hostEvents.get(h.id).get(line) || []);
+  const end = evs.length ? Math.max(...evs.map(o => o.ev.e)) : line;
+  state.pick = { id, line };
+  setBands('pick', [{ h, a: line, b: end }]);
+  document.querySelectorAll('#right .ev').forEach(x => x.classList.toggle('cur', +x.dataset.l === line && x.dataset.n === id));
+}
+const bandSets = { pick: [], trace: [], taint: [], ai: [] };
+function setBands(kind, list) {
+  for (const b of bandSets[kind]) b.remove();
+  bandSets[kind] = [];
+  for (const { h, a, b } of list) {
+    const host = hostOf(h); const code = codeOf.get(host.id); if (!code) continue;
+    const i0 = rowIndex(host, a), i1 = rowIndex(host, b);
+    const d = mk('div', 'band ' + kind); d.style.top = i0 * LH + 'px'; d.style.height = (i1 - i0 + 1) * LH + 'px';
+    code.querySelector('.bands').append(d); bandSets[kind].push(d);
+  }
+}
+
+// ---------------------------------------------------------------- panels
+const right = $('#right'), left = $('#left');
+function link(id, label) { return `<a href="#" data-go="${esc(id)}">${esc(label ?? short(id))}</a>`; }
+function editorLink(n, line) {
+  const f = G.files[n.file]; if (!f) return '';
+  return `<a href="vscode://file${encodeURI(f.abs)}:${line || n.line}" title="Open in VS Code">${esc(n.file)}:${line || n.line} ↗</a>`;
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-go]'); if (!a) return;
+  e.preventDefault(); const id = a.dataset.go;
+  if (state.mode !== 'explore' && !e.target.closest('#right .trace-list')) exitMode();
+  select(id); const n = byId.get(id);
+  if (a.dataset.line) { const h = hostOf(n); markLine(id, +a.dataset.line); focusLine(h, +a.dataset.line); } else focusNode(id, { read: CODEK.has(n.kind) });
+});
+function confChip(c) { return `<span class="chip ${c}">${c}</span>`; }
+function renderInspector(n) {
+  if (state.mode === 'trace') return renderTracePanel();
+  if (state.mode === 'walk') return renderWalkPanel();
+  if (!n) { right.innerHTML = overviewHTML(); return; }
+  if (n.kind === 'external') return renderExternal(n);
+  if (n.kind === 'module' || n.kind === 'package') return renderModule(n);
+  const isCode = CODEK.has(n.kind);
+  let h = `<div class="insp-head"><span class="kind">${esc(n.kind)}</span><h2>${esc(n.kind === 'toplevel' ? n.module + ' (top level)' : n.name)}</h2></div>
+    <div class="where">${esc(n.module)} · ${editorLink(n, n.def_line || n.line)}</div>`;
+  if (n.sig) h += `<div class="sig">${esc(n.sig)}</div>`;
+  if (n.doc) h += `<div class="doc">${esc(n.doc)}</div>`;
+  if (n.entry) h += `<div class="note" style="margin-top:6px">▶ entry point: <b>${esc(n.entry)}</b></div>`;
+  if (isCode) {
+    h += `<div class="actions"><button class="primary" data-act="trace">▶ Trace execution</button>` +
+      `<button class="ai" data-act="explain" ${G.server ? '' : 'disabled title="Run: python -m codemap serve"'}>✦ Explain with AI</button>` +
+      `<button data-act="read">Read code</button></div>`;
+    const ps = (n.params || []).filter(p => !['self', 'cls'].includes(p.n));
+    if (ps.length) h += `<h3>Inputs <span class="note" style="text-transform:none;letter-spacing:0;font-weight:400">— click to trace where a value goes</span></h3><div class="params">${ps.map(p => `<span class="param" data-param="${esc(p.n)}" title="${esc(p.a || '')}">${esc(p.n)}${p.a ? `<span style="color:var(--faint)">: ${esc(p.a)}</span>` : ''}</span>`).join('')}</div>`;
+  }
+  h += `<div class="layer verified"><div class="lh"><span class="badge ver">VERIFIED</span> from static analysis of the source</div>`;
+  const callers = (inE.get(n.id) || []).filter(e => ['call', 'instantiate', 'reference'].includes(e.kind));
+  const callees = (outE.get(n.id) || []).filter(e => ['call', 'instantiate', 'reference', 'inherit'].includes(e.kind));
+  const exts = (outE.get(n.id) || []).filter(e => e.kind === 'external');
+  h += `<h3>Called by (${callers.length})</h3><div class="list">${callers.map(e => `<div class="item" data-go="${esc(e.s)}" data-line="${e.lines[0] || ''}"><span class="nm" style="color:var(--in)">${esc(short(e.s))}</span><small>L${e.lines.join(', L')} ${confChip(e.conf)}${e.kind === 'reference' ? ' <span class="chip">passed as value</span>' : ''}</small></div>`).join('') || '<span class="note">no callers found in the mapped code</span>'}</div>`;
+  h += `<h3>Calls (${callees.length})</h3><div class="list">${callees.map(e => `<div class="item" data-go="${esc(e.t)}" title="${esc(e.via || '')}"><span class="nm" style="color:var(--out)">${esc(short(e.t))}</span><small>${e.kind !== 'call' ? `<span class="chip">${e.kind}</span> ` : ''}${confChip(e.conf)}</small></div>`).join('') || '<span class="note">none</span>'}</div>`;
+  if (exts.length) h += `<h3>External effects (${exts.length})</h3><div class="list">${exts.map(e => { const t = byId.get(e.t); return `<div class="item" data-go="${esc(e.t)}"><span class="nm" style="color:var(--ext)">${esc(t.name)}</span><small>${t.effect ? `<span class="chip eff">${esc(t.effect)}</span> ` : ''}L${e.lines.join(', L')}</small></div>`; }).join('')}</div>`;
+  const unres = (n.calls || []).filter(c => c.kind === 'unresolved');
+  if (unres.length) h += `<h3>Unresolved calls (${unres.length})</h3><div class="note">Receiver type unknown statically: ${[...new Set(unres.map(c => c.text))].slice(0, 14).map(t => `<code>${esc(t)}()</code>`).join(', ')}${unres.length > 14 ? '…' : ''}</div>`;
+  if (isCode && n.events.length) h += `<h3>Flow outline</h3><div class="outline">${outlineHTML(n)}</div>`;
+  h += `</div>`;
+  h += aiSectionHTML(n);
+  right.innerHTML = h;
+  right.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    if (b.dataset.act === 'trace') startTrace(n.id, null);
+    else if (b.dataset.act === 'read') focusNode(n.id, { read: true });
+    else if (b.dataset.act === 'explain') explain({ kind: 'node', node: n.id });
+  });
+  right.querySelectorAll('[data-param]').forEach(b => b.onclick = () => startTrace(n.id, b.dataset.param));
+  bindOutline(n);
+}
+function outlineHTML(n) {
+  return n.events.map((ev, i) => {
+    const k = evTop(n, ev), info = EK[k] || EK.expr; if (info.p < 2 && ev.k !== 'def') return '';
+    return `<div class="ev" data-n="${esc(n.id)}" data-l="${ev.l}" style="padding-left:${6 + ev.d * 12}px" title="${esc(evTitle(n, ev))}"><span class="g k-${info.c}">${info.g}</span><span class="ln">${ev.l}</span><span class="t">${esc(ev.t)}</span></div>`;
+  }).join('');
+}
+function bindOutline(n) {
+  right.querySelectorAll('.outline .ev').forEach(x => x.onclick = () => { const line = +x.dataset.l; markLine(x.dataset.n, line); focusLine(hostOf(n), line); });
+}
+function aiSectionHTML(n) {
+  const hits = [];
+  (G.walkthroughs || []).forEach((w, wi) => w.steps.forEach((s, si) => { if (s.node === n.id || hostOf(byId.get(s.node))?.id === n.id) hits.push({ w, wi, s, si }); }));
+  let h = `<div class="layer ai"><div class="lh"><span class="badge ai">AI</span> interpretation — written by a coding agent, checked against the graph</div>`;
+  h += hits.length ? hits.map(o => `<div class="item" data-walk="${o.wi}" data-step="${o.si}"><span class="nm">${esc(o.w.title)} · step ${o.si + 1}</span><small>${o.s.stale ? '⚠ stale' : ''}</small></div>`).join('') : `<span class="note">No walkthrough step covers this yet.${G.server ? ' Use “Explain with AI”.' : ''}</span>`;
+  h += `</div>`;
+  setTimeout(() => right.querySelectorAll('[data-walk]').forEach(x => x.onclick = () => startWalk(+x.dataset.walk, +x.dataset.step)));
+  return h;
+}
+function renderModule(n) {
+  const mods = n.kind === 'module' ? [n] : G.nodes.filter(x => x.kind === 'module' && x.parent === n.id);
+  const items = G.nodes.filter(x => mods.some(m => m.id === x.module) && (x.kind === 'class' || ((x.kind === 'function') && !x.nested) || x.kind === 'toplevel'));
+  const imps = n.kind === 'module' ? (outE.get(n.id) || []).filter(e => e.kind === 'import') : [];
+  const impBy = n.kind === 'module' ? (inE.get(n.id) || []).filter(e => e.kind === 'import') : [];
+  let h = `<div class="insp-head"><span class="kind">${n.kind}</span><h2>${esc(n.name)}</h2></div><div class="where">${n.file ? editorLink(n, 1) : ''}</div>`;
+  if (n.doc) h += `<div class="doc" style="margin-top:8px">${esc(n.doc)}</div>`;
+  h += `<div class="layer verified"><div class="lh"><span class="badge ver">VERIFIED</span> from static analysis</div>`;
+  h += `<h3>Contents (${items.length})</h3><div class="list">${items.map(x => `<div class="item" data-go="${esc(x.id)}"><span class="nm">${esc(x.kind === 'toplevel' ? 'top level' : x.name)}</span><small>${x.kind} · L${x.line}</small></div>`).join('')}</div>`;
+  if (n.kind === 'module') {
+    h += `<h3>Imports (${imps.length})</h3><div class="list">${imps.map(e => `<div class="item" data-go="${esc(e.t)}"><span class="nm">${esc(e.t)}</span></div>`).join('') || '<span class="note">no project imports</span>'}</div>`;
+    h += `<h3>Imported by (${impBy.length})</h3><div class="list">${impBy.map(e => `<div class="item" data-go="${esc(e.s)}"><span class="nm">${esc(e.s)}</span></div>`).join('') || '<span class="note">none</span>'}</div>`;
+  }
+  right.innerHTML = h + '</div>';
+}
+function renderExternal(n) {
+  const callers = (inE.get(n.id) || []);
+  right.innerHTML = `<div class="insp-head"><span class="kind">external</span><h2>${esc(n.name)}</h2></div>
+    <div class="where">${n.stdlib ? 'Python standard library' : 'third-party / unresolved module'}${n.effect ? ` · effect: <span class="chip eff">${esc(n.effect)}</span>` : ''}</div>
+    <div class="layer verified"><div class="lh"><span class="badge ver">VERIFIED</span> call sites</div><h3>Called from (${callers.length})</h3>
+    <div class="list">${callers.map(e => `<div class="item" data-go="${esc(e.s)}" data-line="${e.lines[0]}"><span class="nm">${esc(short(e.s))}</span><small>L${e.lines.join(', L')}</small></div>`).join('')}</div></div>`;
+}
+function overviewHTML() {
+  const fns = G.nodes.filter(n => n.kind === 'function' || n.kind === 'method').length;
+  const ver = G.edges.filter(e => ['call', 'instantiate'].includes(e.kind) && e.conf !== 'dynamic').length;
+  const dyn = G.edges.filter(e => e.conf === 'dynamic').length, ext = G.edges.filter(e => e.kind === 'external').length;
+  return `<h3>About this map</h3>
+  <div class="stat"><b>${Object.keys(G.files).length}</b> files · <b>${fns}</b> functions &amp; methods · <b>${ver}</b> resolved calls · <b>${dyn}</b> dynamic candidates · <b>${ext}</b> external calls</div>
+  <p class="note">Built ${esc(G.generated_at)} from <code>${esc((G.paths || []).join(' '))}</code>. Blocks and wires come from parsing the source with Python's <code>ast</code>; nothing was executed and no model was involved. Purple elements are AI walkthroughs, kept on a separate layer and checked against this graph.</p>
+  <h3>Start here</h3>
+  <p class="note">Click any block to light up its callers and callees. Double-click to read its code. Pick an entry point on the left and press <b>Trace execution</b> to follow the program step by step, or open an AI walkthrough for a guided tour.</p>
+  ${(G.errors || []).length ? `<h3>Skipped files</h3>${G.errors.map(e => `<div class="err">${esc(e.file)}: ${esc(e.error)}</div>`).join('')}` : ''}`;
+}
+function renderLeft() {
+  const entries = G.nodes.filter(n => n.entry && n.entry !== 'test');
+  const tests = G.nodes.filter(n => n.entry === 'test');
+  const mains = G.nodes.filter(n => n.kind === 'function' && n.name === 'main' && !n.entry);
+  let h = `<h3>Entry points</h3><div class="list">${[...entries, ...mains].map(n => `<div class="item" data-entry="${esc(n.id)}"><span class="nm" style="color:var(--out)">▶ ${esc(n.kind === 'toplevel' ? n.module : n.qual)}</span><small>${esc(n.entry || 'main()')}</small></div>`).join('') || '<span class="note">none detected</span>'}</div>`;
+  if (tests.length) h += `<details><summary class="note" style="cursor:pointer;margin:6px 0">${tests.length} test entry points</summary><div class="list">${tests.map(n => `<div class="item" data-entry="${esc(n.id)}"><span class="nm">${esc(n.name)}</span></div>`).join('')}</div></details>`;
+  h += `<div class="sect-ai"><h3>✦ AI walkthroughs <span class="badge ai">AI</span></h3>`;
+  const ws = G.walkthroughs || [];
+  h += ws.length ? ws.map((w, i) => `<div class="wt" data-walk="${i}"><b>${esc(w.title)}</b><small>${esc(w.question || '')}</small><small>${w.steps.length} steps · ${w.problems ? `<span style="color:var(--ext)">⚠ ${w.problems} failed check${w.problems > 1 ? 's' : ''}</span>` : '✓ all anchors verified'}</small></div>`).join('')
+    : `<p class="note">None yet. Generate with <code>python -m codemap explain</code>${G.server ? ' or the button below' : ''}.</p>`;
+  if (G.server) h += `<button class="ai" id="btn-overview" style="width:100%">✦ Generate overview walkthroughs</button><div id="ai-status" class="note" style="margin-top:6px"></div>`;
+  h += `</div><h3>Legend</h3><div class="legend">
+    ${legendLine('var(--call)', '')}<span>call (resolved / inferred)</span>
+    ${legendLine('var(--dyn)', '6 5')}<span>dynamic dispatch candidate</span>
+    ${legendLine('var(--ref)', '2 4')}<span>passed as value / inherits</span>
+    ${legendLine('var(--ext)', '')}<span>external library call</span>
+    ${legendLine('var(--in)', '')}<span>caller of selection</span>
+    ${legendLine('var(--out)', '')}<span>callee of selection</span>
+    ${legendLine('var(--trace)', '9 6')}<span>traced execution path</span>
+    ${legendLine('var(--taint)', '')}<span>data flow of a traced input</span>
+    ${legendLine('var(--ai)', '3 5')}<span>AI walkthrough (interpretation)</span></div>
+    <div class="glyphs">${['call', 'external', 'branch', 'loop', 'return', 'raise', 'except', 'assign'].map(k => `<span><b class="k-${EK[k].c}">${EK[k].g}</b> ${EK[k].label}</span>`).join('')}</div>
+    <p class="note">Wires leave a block at the exact line that makes the call and enter the callee's header.</p>`;
+  left.innerHTML = h;
+  left.querySelectorAll('[data-entry]').forEach(x => x.onclick = () => { if (state.mode !== 'explore') exitMode(); select(x.dataset.entry); focusNode(x.dataset.entry, { read: true }); });
+  left.querySelectorAll('[data-walk]').forEach(x => x.onclick = () => startWalk(+x.dataset.walk, 0));
+  const ob = $('#btn-overview'); if (ob) ob.onclick = () => explain({ kind: 'overview' });
+}
+function legendLine(color, dash) { return `<svg viewBox="0 0 34 10"><path d="M1 5 H33" stroke="${color}" stroke-width="2" ${dash ? `stroke-dasharray="${dash}"` : ''} fill="none"/></svg>`; }
+function updateCrumbs(n) {
+  const c = $('#crumbs'); if (!n) { c.innerHTML = ''; return; }
+  const chain = []; let x = n;
+  while (x) { chain.unshift(x); x = x.parent ? byId.get(x.parent) : null; }
+  c.innerHTML = chain.map(x => x.kind === 'package' ? esc(x.name) : link(x.id, x.kind === 'toplevel' ? 'top level' : x.name)).join(' › ');
+}
+
+// ---------------------------------------------------------------- search
+const searchIdx = G.nodes.filter(n => ['function', 'method', 'class', 'module', 'external', 'toplevel'].includes(n.kind))
+  .map(n => ({ id: n.id, name: (n.kind === 'toplevel' ? n.module + ' top level' : n.name).toLowerCase(), qual: (n.id).toLowerCase(), n }));
+let resSel = 0, resList = [];
+function hideResults() { $('#results').style.display = 'none'; }
+$('#q').addEventListener('input', () => {
+  const q = $('#q').value.trim().toLowerCase(); if (!q) return hideResults();
+  const score = x => x.name === q ? 0 : x.name.startsWith(q) ? 1 : x.name.includes(q) ? 2 : x.qual.includes(q) ? 3 : subseq(q, x.qual) ? 4 : 9;
+  resList = searchIdx.map(x => ({ x, s: score(x) })).filter(o => o.s < 9).sort((a, b) => a.s - b.s || a.x.name.length - b.x.name.length).slice(0, 14).map(o => o.x);
+  resSel = 0; drawResults();
+});
+function subseq(q, s) { let i = 0; for (const ch of s) if (ch === q[i]) i++; return i === q.length; }
+function drawResults() {
+  const r = $('#results');
+  r.innerHTML = resList.map((x, i) => `<div class="${i === resSel ? 'on' : ''}" data-i="${i}"><span>${esc(x.n.kind === 'toplevel' ? 'top level' : x.n.name)}</span><small>${esc(x.n.kind)} · ${esc(x.n.module || x.n.group || '')}</small></div>`).join('') || '<div><small>no matches</small></div>';
+  r.style.display = 'block';
+  r.querySelectorAll('[data-i]').forEach(d => d.onmousedown = e => { e.preventDefault(); choose(+d.dataset.i); });
+}
+function choose(i) { const x = resList[i]; if (!x) return; hideResults(); $('#q').blur(); if (state.mode !== 'explore') exitMode(); select(x.id); focusNode(x.id, { read: CODEK.has(x.n.kind) }); }
+$('#q').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { resSel = Math.min(resSel + 1, resList.length - 1); drawResults(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { resSel = Math.max(resSel - 1, 0); drawResults(); e.preventDefault(); }
+  else if (e.key === 'Enter') choose(resSel);
+});
+$('#q').addEventListener('blur', () => setTimeout(hideResults, 150));
+
+// ---------------------------------------------------------------- tracing (static execution + data flow)
+function projTargets(call, fromId) {
+  let ts = [];
+  if (call.kind === 'call' || call.kind === 'instantiate') ts = [call.target];
+  else if (call.kind === 'dynamic' && state.followDyn) {
+    ts = call.cands; const fromTest = isTest(fromId), nt = ts.filter(t => fromTest || !isTest(t)); if (nt.length) ts = nt;
+  }
+  return ts.filter(t => { const n = byId.get(t); return n && CODEK.has(n.kind); });
+}
+function paramsFor(call, t) { return (call.pm && call.pm[t]) || []; }
+
+function computeTaint(root, names, maxDepth) {
+  const hit = new Map(), into = new Map(), tnames = new Map(), memo = new Map(), sinks = [], decisions = [], returns = new Set();
+  const sinkKey = new Set();
+  function run(fid, init, depth, stack) {
+    const key = fid + '|' + [...init].sort().join(',');
+    if (memo.has(key)) return memo.get(key);
+    if (depth > maxDepth || stack.includes(fid)) return false;
+    memo.set(key, false);
+    const n = byId.get(fid), T = new Set(init); let ret = false;
+    const hs = hit.get(fid) || new Set(); hit.set(fid, hs);
+    for (let pass = 0; pass < 2; pass++) {
+      n.events.forEach((ev, i) => {
+        // A statement whose whole value is one project call (x = f(a) / return f(a)) is tainted only
+        // if the callee returns the traced value; everything else is conservative (any tainted read).
+        const direct = ev.c.map(ci => n.calls[ci]).find(c => (c.to || []).length && projTargets(c, fid).length);
+        const argNames = direct ? new Set([...direct.args.flatMap(a => a.r), ...(direct.recv ? direct.recv.r : [])]) : null;
+        let h = ev.r.some(x => T.has(x) && !(argNames && argNames.has(x)));
+        for (const ci of ev.c) {
+          const call = n.calls[ci];
+          const tArgs = call.args.map(a => a.r.some(x => T.has(x)));
+          const recvT = call.recv && call.recv.r.some(x => T.has(x));
+          if (!(tArgs.some(Boolean) || recvT)) continue;
+          const targets = projTargets(call, fid);
+          if (call !== direct) h = true;
+          else if (recvT) h = true;
+          let mapped = false;
+          for (const t of targets) {
+            const pm = paramsFor(call, t), init2 = new Set();
+            tArgs.forEach((b, j) => { if (b && pm[j]) init2.add(pm[j]); });
+            const tn = byId.get(t);
+            if (tn.nested && (tn.free || []).length) tn.free.forEach(f => { if (T.has(f)) init2.add(f); });
+            if (!init2.size) continue;
+            mapped = true;
+            const r = run(t, init2, depth + 1, [...stack, fid]);
+            push(into, fid + '|' + ci, { t, params: [...init2] });
+            if (r) h = true;
+          }
+          if (call === direct && !mapped && tArgs.some(Boolean)) h = true;  // e.g. *args: stay conservative
+          if ((call.kind === 'external' || call.effect) && (tArgs.some(Boolean) || (recvT && call.effect))) {
+            const k = fid + '|' + ci; if (!sinkKey.has(k)) { sinkKey.add(k); sinks.push({ fn: fid, ci, ev: i, name: call.name || call.text, effect: call.effect || (byId.get(call.target) || {}).effect }); }
+          }
+        }
+        if (h) {
+          hs.add(i); ev.w.forEach(w => T.add(w));
+          if (ev.k === 'return' || ev.k === 'yield') { ret = true; returns.add(fid + '|' + i); }
+          if ((ev.k === 'branch' || ev.k === 'loop' || ev.k === 'assert') && pass === 0) decisions.push({ fn: fid, ev: i });
+        }
+      });
+    }
+    const tn = tnames.get(fid) || new Set(); T.forEach(x => tn.add(x)); tnames.set(fid, tn);
+    memo.set(key, ret); return ret;
+  }
+  run(root, new Set(names), 0, []);
+  for (const k of [...into.keys()]) into.set(k, [...new Map(into.get(k).map(o => [o.t, o])).values()]);
+  return { hit, into, tnames, sinks, decisions, returns };
+}
+function taintNamesFor(h) {
+  const tr = state.trace; if (!tr || !tr.taint) return null;
+  const s = new Set(); [h, ...nestedOf(h.id)].forEach(n => (tr.taint.tnames.get(n.id) || []).forEach(x => s.add(x.split('.').pop())));
+  return s.size ? s : null;
+}
+function buildSteps(root, maxDepth, taint) {
+  const steps = [], expanded = new Set();
+  const INTEREST = new Set(['branch', 'loop', 'return', 'raise', 'except', 'try', 'with', 'yield', 'assert']);
+  (function visit(fid, depth, via) {
+    if (steps.length > 2500) return;
+    const n = byId.get(fid); expanded.add(fid);
+    steps.push({ t: 'enter', fn: fid, depth, via });
+    const hits = taint ? (taint.hit.get(fid) || new Set()) : null;
+    n.events.forEach((ev, ei) => {
+      if (hits ? !hits.has(ei) : !(ev.c.length || INTEREST.has(ev.k))) return;
+      const step = { t: 'ev', fn: fid, ev: ei, depth, refs: [] };
+      steps.push(step);
+      for (const ci of ev.c) {
+        const call = n.calls[ci];
+        let targets = projTargets(call, fid);
+        if (taint) { const ok = new Set((taint.into.get(fid + '|' + ci) || []).map(o => o.t)); targets = targets.filter(t => ok.has(t)); }
+        for (const t of targets) {
+          if (expanded.has(t)) step.refs.push({ to: t, why: 'shown earlier' });
+          else if (depth + 1 > maxDepth) step.refs.push({ to: t, why: 'deeper than limit' });
+          else visit(t, depth + 1, { fn: fid, ci, ev: ei });
+        }
+      }
+    });
+    steps.push({ t: 'exit', fn: fid, depth });
+  })(root, 0, null);
+  return steps;
+}
+function startTrace(root, param) {
+  const n = byId.get(root); if (!n) return;
+  state.mode = 'trace'; state.walk = null;
+  state.trace = { root, param, depth: state.trace?.root === root ? state.trace.depth : 4, i: 0, playing: false };
+  rebuildTrace(); show(0);
+}
+function rebuildTrace() {
+  const tr = state.trace; if (!tr) return;
+  tr.taint = tr.param ? computeTaint(tr.root, [tr.param], tr.depth + 2) : null;
+  tr.steps = buildSteps(tr.root, tr.depth, tr.taint);
+  tr.i = Math.min(tr.i, tr.steps.length - 1);
+  clearMarks(); world.classList.add('dimall');
+  const used = new Set(tr.steps.map(s => s.fn));
+  used.forEach(id => lightNode(id));
+  if (tr.taint) {
+    const bands = [];
+    for (const [fid, set] of tr.taint.hit) { const fn = byId.get(fid); set.forEach(i => { const ev = fn.events[i]; bands.push({ h: fn, a: ev.l, b: ev.e }); }); }
+    setBands('taint', bands);
+    tr.taint.sinks.forEach(s => { const e = (outE.get(s.fn) || []).find(e => e.kind === 'external' && e.lines.includes(byId.get(s.fn).calls[s.ci].l)); if (e) { lightNode(e.t); const w = wireOf.get(e.i); if (w) w.classList.add('trail', 'taint'); } });
+  } else setBands('taint', []);
+  invalidateCode(); drawTrail(); renderTracePanel(); renderStepper();
+}
+function drawTrail() {
+  const tr = state.trace; clearOverlay('trail');
+  document.querySelectorAll('.w.trail').forEach(e => { if (!e.classList.contains('taint')) e.classList.remove('trail'); });
+  let k = 0;
+  tr.steps.forEach((s, i) => {
+    if (s.t !== 'enter' || !s.via || i > tr.i) return;
+    const w = wireByPair.get(s.via.fn + '|' + s.fn); if (!w) return;
+    w.classList.add('trail'); if (tr.taint) w.classList.add('taint');
+    const L = w.getTotalLength(), p = w.getPointAtLength(L * 0.5);
+    const b = mk('div', 'badge-n'); b.textContent = ++k; b.style.left = p.x + 'px'; b.style.top = p.y + 'px'; b.dataset.ov = 'trail'; over.append(b);
+  });
+  document.querySelectorAll('.blk.visited').forEach(e => e.classList.remove('visited'));
+  tr.steps.slice(0, tr.i + 1).forEach(s => { const h = hostOf(s.fn); elOf.get(h.id)?.classList.add('visited'); });
+}
+function clearOverlay(tag) { over.querySelectorAll(`[data-ov="${tag}"]`).forEach(e => e.remove()); }
+function stepLine(s) {
+  const n = byId.get(s.fn);
+  if (s.t === 'ev') { const ev = n.events[s.ev]; return { a: ev.l, b: ev.e }; }
+  if (s.t === 'exit') { const h = hostOf(n); return { a: n.end, b: n.end }; }
+  return { a: n.def_line || n.line, b: n.def_line || n.line };
+}
+function show(i, opts = {}) {
+  const tr = state.trace; if (!tr) return;
+  const prev = tr.i; tr.i = clamp(i, 0, tr.steps.length - 1);
+  const s = tr.steps[tr.i], n = byId.get(s.fn), h = hostOf(n);
+  document.querySelectorAll('.blk.cur').forEach(e => e.classList.remove('cur'));
+  elOf.get(h.id)?.classList.add('cur');
+  const { a, b } = stepLine(s);
+  setBands('trace', [{ h: n, a, b }]);
+  drawTrail();
+  if (!opts.noFly) focusLine(h, a, { reserve: 0 });
+  if (s.t === 'enter' && s.via && tr.i === prev + 1) pulse(wireByPair.get(s.via.fn + '|' + s.fn));
+  renderStepper(); highlightStepInList(); updateHash();
+}
+function pulse(path) {
+  if (!path || INSTANT) return;
+  const L = path.getTotalLength(), d = mk('div', 'pulse'); d.dataset.ov = 'pulse'; over.append(d);
+  const t0 = performance.now(), ms = 520;
+  const f = now => { const p = Math.min(1, (now - t0) / ms), pt = path.getPointAtLength(L * p); d.style.left = pt.x + 'px'; d.style.top = pt.y + 'px'; if (p < 1) requestAnimationFrame(f); else d.remove(); };
+  requestAnimationFrame(f);
+}
+function stepDesc(s, rich) {
+  const n = byId.get(s.fn), nm = x => rich ? link(x, short(x)) : esc(short(x));
+  if (s.t === 'enter') {
+    if (!s.via) return `▶ start in ${nm(s.fn)}` + (state.trace.param ? ` tracking <b>${esc(state.trace.param)}</b>` : '');
+    const caller = byId.get(s.via.fn), call = caller.calls[s.via.ci], pm = paramsFor(call, s.fn);
+    const map = call.args.map((a, j) => pm[j] && a.x !== pm[j] ? `${esc(a.x)} → ${esc(pm[j])}` : pm[j] ? esc(pm[j]) : null).filter(Boolean);
+    const tracked = state.trace.taint ? (state.trace.taint.into.get(s.via.fn + '|' + s.via.ci) || []).find(o => o.t === s.fn) : null;
+    return `→ enter ${nm(s.fn)} <span class="note">from L${call.l}${call.conf === 'dynamic' ? ' (dynamic dispatch)' : ''}</span>` + (map.length ? ` <span class="mono" style="color:var(--muted)">(${map.join(', ')})</span>` : '') + (tracked ? ` <span style="color:var(--taint)">carrying ${tracked.params.map(esc).join(', ')}</span>` : '');
+  }
+  if (s.t === 'exit') return `← leave ${nm(s.fn)}`;
+  const ev = n.events[s.ev], k = evTop(n, ev), info = EK[k] || EK.expr;
+  const exts = ev.c.map(ci => n.calls[ci]).filter(c => c.kind === 'external');
+  let extra = exts.length ? ` <span style="color:var(--ext)">⇗ ${exts.map(c => esc(c.name) + (c.effect ? ` (${c.effect})` : '')).join(', ')}</span>` : '';
+  if (s.refs && s.refs.length) extra += ` <span class="note">→ ${s.refs.map(r => nm(r.to) + ` (${r.why})`).join(', ')}</span>`;
+  return `<span class="k-${info.c}">${info.g}</span> <span class="mono">${esc(ev.t)}</span>${extra}`;
+}
+function renderStepper() {
+  const st = $('#stepper');
+  if (state.mode === 'trace') {
+    const tr = state.trace, s = tr.steps[tr.i];
+    st.className = ''; st.style.display = 'flex';
+    st.innerHTML = `<button data-s="-1" title="Previous (←)">◀</button><button data-s="play" title="Play / pause (Space plays step by step)">${tr.playing ? '❚❚' : '⏵'}</button><button data-s="1" title="Next (→)">▶</button>
+      <span class="count">${tr.i + 1} / ${tr.steps.length}</span><span class="desc">${stepDesc(s, false)}</span><button data-s="x" title="Exit (Esc)">✕</button>`;
+  } else if (state.mode === 'walk') {
+    const w = G.walkthroughs[state.walk.wi];
+    st.className = 'walk'; st.style.display = 'flex';
+    st.innerHTML = `<span class="badge ai">AI</span><button data-s="-1">◀</button><button data-s="1">▶</button><span class="count">${state.walk.si + 1} / ${w.steps.length}</span><span class="desc">${esc(w.title)}</span><button data-s="x">✕</button>`;
+  } else { st.style.display = 'none'; return; }
+  st.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
+    const v = b.dataset.s;
+    if (v === 'x') exitMode(); else if (v === 'play') togglePlay(); else stepBy(+v);
+  });
+}
+let playTimer = null;
+function togglePlay() {
+  const tr = state.trace; tr.playing = !tr.playing; clearInterval(playTimer);
+  if (tr.playing) playTimer = setInterval(() => { if (state.mode !== 'trace' || tr.i >= tr.steps.length - 1) { tr.playing = false; clearInterval(playTimer); renderStepper(); return; } show(tr.i + 1); }, 1300);
+  renderStepper();
+}
+function stepBy(d) {
+  if (state.mode === 'trace') show(state.trace.i + d);
+  else if (state.mode === 'walk') showWalkStep(state.walk.si + d);
+}
+function renderTracePanel() {
+  const tr = state.trace, root = byId.get(tr.root);
+  let h = `<div class="insp-head"><span class="kind">${tr.param ? 'data trace' : 'execution trace'}</span><h2>${esc(short(tr.root))}</h2></div>
+    <div class="where">${editorLink(root, root.def_line || root.line)}</div>
+    <p class="note">${tr.param ? `Follows the value of <b>${esc(tr.param)}</b> through assignments and call arguments (statement-level, approximate). Coral lines touch the value.` : 'Static walk of the calls this code makes, in source order. Branches are shown, not decided: every path is listed.'}</p>
+    <div class="actions"><label class="note">depth <button data-d="-1">−</button> <b>${tr.depth}</b> <button data-d="1">+</button></label>
+    <button class="ai" data-act="explain-trace" ${G.server ? '' : 'disabled title="Run: python -m codemap serve"'}>✦ Explain this path with AI</button>
+    <button data-act="exit">Exit</button></div>`;
+  if (tr.taint) {
+    const t = tr.taint;
+    const effects = {}; t.sinks.forEach(s => { effects[s.effect || 'call'] = (effects[s.effect || 'call'] || 0) + 1; });
+    h += `<div class="layer verified sinks"><div class="lh"><span class="badge ver">VERIFIED</span> where <b>${esc(tr.param)}</b> ends up (static, approximate)</div>
+      <div class="stat"><b>${[...t.hit.values()].filter(x => x.size).length}</b> functions touched · <b>${t.decisions.length}</b> decisions depend on it · <b>${t.sinks.length}</b> external effects · ${[...t.returns].some(k => k.split('|')[0] === tr.root) ? '<b>returned</b> by the traced function' : 'not returned by the traced function'}</div>
+      <div style="margin-top:6px">${Object.entries(effects).map(([k, v]) => `<span class="chip eff" style="margin:0 4px 4px 0">${esc(k)} × ${v}</span>`).join('')}</div>
+      <details ${t.sinks.length <= 8 ? 'open' : ''}><summary class="note" style="cursor:pointer">external calls that receive it (${t.sinks.length})</summary>
+      <div class="list" style="margin-top:6px">${t.sinks.map(s => { const n = byId.get(s.fn); return `<div class="item" data-go="${esc(s.fn)}" data-line="${n.calls[s.ci].l}"><span class="nm" style="color:var(--ext)">⇗ ${esc(s.name)}</span><small>${s.effect ? `<span class="chip eff">${esc(s.effect)}</span> ` : ''}${esc(short(s.fn))} L${n.calls[s.ci].l}</small></div>`; }).join('')}</div></details>
+      <div class="list">${[...t.returns].filter(k => k.split('|')[0] === tr.root).map(k => { const [fid, i] = k.split('|'); const n = byId.get(fid), ev = n.events[+i]; return `<div class="item" data-go="${esc(fid)}" data-line="${ev.l}"><span class="nm" style="color:var(--k-ret)">⏎ ${esc(ev.t)}</span><small>output of ${esc(short(fid))}</small></div>`; }).join('')}</div>
+      <p class="note" style="margin:6px 0 0">${t.returns.size - [...t.returns].filter(k => k.split('|')[0] === tr.root).length} more returns inside callees carry it back up; they are marked in coral on the map.</p></div>`;
+  }
+  h += `<h3>Steps</h3><div class="trace-list">${tr.steps.map((s, i) => `<div class="ev ${s.t === 'enter' ? 'enter' : ''} ${s.t === 'exit' ? 'dim' : ''}" data-i="${i}" style="padding-left:${6 + s.depth * 12}px"><span class="t">${stepDesc(s, false)}</span></div>`).join('')}</div>`;
+  right.innerHTML = h;
+  right.querySelectorAll('.trace-list .ev').forEach(x => x.onclick = () => show(+x.dataset.i));
+  right.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { tr.depth = clamp(tr.depth + +b.dataset.d, 1, 12); rebuildTrace(); show(tr.i, { noFly: true }); });
+  right.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    if (b.dataset.act === 'exit') exitMode();
+    else explain({ kind: 'trace', path: [...new Set(tr.steps.filter(s => s.t === 'enter').map(s => s.fn))].slice(0, 40), param: tr.param });
+  });
+  highlightStepInList();
+}
+function highlightStepInList() {
+  if (state.mode !== 'trace') return;
+  right.querySelectorAll('.trace-list .ev').forEach(x => x.classList.toggle('cur', +x.dataset.i === state.trace.i));
+  const cur = right.querySelector('.trace-list .ev.cur'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+function exitMode() {
+  clearInterval(playTimer);
+  state.mode = 'explore'; state.trace = null; state.walk = null;
+  ['trace', 'taint', 'ai', 'pick'].forEach(k => setBands(k, []));
+  over.innerHTML = ''; clearAI(); $('#callout').style.display = 'none';
+  clearMarks(); invalidateCode(); renderStepper();
+  select(state.sel);
+}
+
+// ---------------------------------------------------------------- AI walkthroughs
+const aiG = document.createElementNS(SVGNS, 'g'); $('#aiwires').append(aiG);
+$('#aiwires').setAttribute('width', G.bounds.x + G.bounds.w); $('#aiwires').setAttribute('height', G.bounds.y + G.bounds.h);
+function clearAI() { aiG.innerHTML = ''; }
+function stepRect(s) {
+  const n = byId.get(s.node); if (!n) return null; const h = hostOf(n); if (!h || h.cy == null) return null;
+  const y0 = lineTop(h, s.start), y1 = lineTop(h, s.end || s.start) + LH;
+  return { h, n, x: h.x, y: y0, w: h.w, hgt: Math.max(LH, y1 - y0) };
+}
+function startWalk(wi, si) {
+  if (state.mode === 'trace') { clearInterval(playTimer); state.trace = null; }
+  state.mode = 'walk'; state.walk = { wi, si: 0 };
+  clearMarks(); setBands('taint', []); setBands('trace', []); over.innerHTML = ''; invalidateCode();
+  world.classList.add('dimall');
+  const w = G.walkthroughs[wi];
+  w.steps.forEach(s => s.node && lightNode(s.node));
+  clearAI();
+  let prev = null;
+  w.steps.forEach((s, i) => {
+    const r = stepRect(s); if (!r) return;
+    const b = mk('div', 'bracket'); Object.assign(b.style, { left: (r.x - 10) + 'px', top: r.y + 'px', width: '7px', height: r.hgt + 'px' }); b.dataset.ov = 'ai'; over.append(b);
+    const n = mk('div', 'badge-n ai'); n.textContent = i + 1; n.style.left = (r.x - 26) + 'px'; n.style.top = (r.y + 8) + 'px'; n.dataset.ov = 'ai'; n.dataset.step = i; over.append(n);
+    if (prev) { const p = svgPath(curve({ x: prev.x + prev.w, y: prev.y + prev.hgt / 2 }, { x: r.x - 26, y: r.y + 8 }), 'aiw', aiG); p.dataset.step = i; }
+    prev = r;
+  });
+  showWalkStep(si);
+}
+function showWalkStep(si) {
+  const w = G.walkthroughs[state.walk.wi]; si = clamp(si, 0, w.steps.length - 1); state.walk.si = si;
+  const s = w.steps[si], r = stepRect(s);
+  document.querySelectorAll('.blk.aicur').forEach(e => e.classList.remove('aicur'));
+  aiG.querySelectorAll('.aiw').forEach(p => p.classList.toggle('cur', +p.dataset.step === si));
+  if (r) {
+    elOf.get(r.h.id)?.classList.add('aicur');
+    setBands('ai', [{ h: r.n, a: s.start, b: s.end || s.start }]);
+    const sz = vpSize(), reserve = Math.min(420, sz.w * 0.4);
+    const k = clamp(Math.min((sz.w - reserve - 80) / r.w, (sz.h - 120) / r.hgt), 0.55, 1.2);
+    flyTo({ k, x: (sz.w - reserve) / 2 - (r.x + Math.min(r.w, (sz.w - reserve - 80) / k) / 2) * k, y: sz.h * 0.45 - (r.y + Math.min(r.hgt, (sz.h - 160) / k) / 2) * k });
+  }
+  renderCallout(); renderStepper(); renderWalkPanel(); updateHash();
+}
+function aiText(t) {
+  return esc(t).replace(/\[\[([^\]]+)\]\]/g, (m, id) => {
+    const real = byId.has(id) ? id : [...byId.keys()].find(k => k.endsWith('.' + id));
+    return real ? `<span class="sym" data-go="${esc(real)}">${esc(short(real))}</span>` : `<span class="sym" style="color:var(--ext);border-color:var(--ext)" title="not found in the verified graph">${esc(id)}</span>`;
+  });
+}
+function renderCallout() {
+  const c = $('#callout'); if (state.mode !== 'walk') { c.style.display = 'none'; return; }
+  const w = G.walkthroughs[state.walk.wi], s = w.steps[state.walk.si], n = byId.get(s.node);
+  const link = s.link ? { verified: '✓ verified call path from previous step', dynamic: '~ reached via dynamic dispatch', return: '↩ returns to a caller', unverified: '⚠ sequence not backed by a static call path' }[s.link.status] : '';
+  c.innerHTML = `<div class="ch"><span class="badge ai">AI INTERPRETATION</span><span>step ${state.walk.si + 1} of ${w.steps.length}</span></div>
+    <h4>${esc(s.title)}</h4><div class="body">${aiText(s.text)}</div>
+    ${n ? `<span class="src-link">${link ? '' : ''}${editorLink(n, s.start)}${s.end && s.end !== s.start ? '–' + s.end : ''} · ${esc(short(s.node))}</span>` : ''}
+    <div class="checks">${(s.checks || []).map(ch => `<div class="chk ${ch.ok ? 'ok' : 'bad'}">${esc(ch.msg)}</div>`).join('')}</div>`;
+  c.style.display = 'block';
+  positionCallout();
+}
+function positionCallout() {
+  if (state.mode !== 'walk') return;
+  const c = $('#callout'), w = G.walkthroughs[state.walk.wi], r = stepRect(w.steps[state.walk.si]); const sz = vpSize();
+  if (!r) { c.style.left = (sz.w - 400) + 'px'; c.style.top = '20px'; return; }
+  const rx = (r.x + r.w) * cam.k + cam.x, lx = r.x * cam.k + cam.x, ty = r.y * cam.k + cam.y;
+  let x = rx + 18; if (x + 390 > sz.w) x = lx - 398; if (x < 8) x = sz.w - 398;
+  const y = clamp(ty - 10, 10, sz.h - c.offsetHeight - 80);
+  c.style.left = x + 'px'; c.style.top = y + 'px';
+}
+function renderWalkPanel() {
+  const w = G.walkthroughs[state.walk.wi];
+  const prov = w.provenance || {};
+  right.innerHTML = `<div class="insp-head"><span class="kind" style="color:var(--ai);border-color:var(--ai)">AI walkthrough</span></div><h2 style="margin:6px 0 2px;font-size:16px">${esc(w.title)}</h2>
+    <div class="note">${esc(w.question || '')}</div>
+    <div class="layer ai"><div class="lh"><span class="badge ai">AI</span> ${esc(prov.agent || 'coding agent')}${prov.models && prov.models.length ? ' · ' + esc(prov.models.join(', ')) : ''} · ${esc((w.generated_at || '').slice(0, 16).replace('T', ' '))}</div>
+    <div class="doc" style="color:var(--text)">${aiText(w.summary || '')}</div></div>
+    <div class="layer verified"><div class="lh"><span class="badge ver">CHECKS</span> ${w.problems ? `<span style="color:var(--ext)">${w.problems} failed</span>` : 'every anchor matches the current code'}</div>
+    <div class="trace-list">${w.steps.map((s, i) => `<div class="ev ${i === state.walk.si ? 'cur' : ''}" data-si="${i}"><span class="g" style="color:var(--ai)">${i + 1}</span><span class="t" style="font-family:var(--sans);font-size:12.5px">${esc(s.title)} <span class="note">· ${esc(short(s.node))}${s.stale ? ' · ⚠ stale' : ''}${s.link && s.link.status === 'unverified' ? ' · ⚠ unverified hop' : ''}</span></span></div>`).join('')}</div></div>
+    <div class="actions"><button data-act="exit">Exit walkthrough</button></div>`;
+  right.querySelectorAll('[data-si]').forEach(x => x.onclick = () => showWalkStep(+x.dataset.si));
+  right.querySelector('[data-act="exit"]').onclick = exitMode;
+}
+async function explain(focus) {
+  if (!G.server) return;
+  const status = $('#ai-status');
+  const msg = `<span class="spinner"></span> Asking the coding agent (claude -p)… this can take a minute or two.`;
+  if (status) status.innerHTML = msg;
+  const btns = document.querySelectorAll('button.ai'); btns.forEach(b => b.disabled = true);
+  const tmp = mk('div', 'note', msg); tmp.style.margin = '8px 0'; right.prepend(tmp);
+  try {
+    const res = await fetch('/api/explain', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ focus }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    G.walkthroughs = data.walkthroughs; G.fingerprint = data.fingerprint;
+    renderLeft();
+    const wi = G.walkthroughs.findIndex(w => w.id === data.new[0]);
+    if (wi >= 0) startWalk(wi, 0);
+  } catch (err) {
+    tmp.className = 'err'; tmp.textContent = 'AI explanation failed: ' + err.message;
+    if (status) status.textContent = '';
+  } finally { btns.forEach(b => b.disabled = false); if (status && status.innerHTML.includes('spinner')) status.textContent = ''; }
+}
+
+// ---------------------------------------------------------------- live reload (serve mode) & URL state
+if (G.server) setInterval(async () => {
+  try {
+    const r = await fetch('/api/version'); const v = await r.json();
+    if (v.fingerprint !== G.fingerprint && !v.busy) {
+      const b = $('#banner'); b.style.display = 'flex';
+      b.innerHTML = `<span>Source changed on disk.</span><button class="primary" id="btn-reload">Reload map</button>`;
+      $('#btn-reload').onclick = () => location.reload();
+    }
+  } catch (e) { }
+}, 2500);
+let hashLock = false;
+function updateHash() {
+  if (hashLock) return;
+  let h = '';
+  if (state.mode === 'trace') h = `trace=${encodeURIComponent(state.trace.root)}${state.trace.param ? '&param=' + encodeURIComponent(state.trace.param) : ''}&step=${state.trace.i}`;
+  else if (state.mode === 'walk') h = `walk=${encodeURIComponent(G.walkthroughs[state.walk.wi].id)}&step=${state.walk.si}`;
+  else if (state.sel) h = `sel=${encodeURIComponent(state.sel)}`;
+  history.replaceState(null, '', h ? '#' + h : location.pathname + location.search);
+}
+function applyHash() {
+  const p = new URLSearchParams(location.hash.slice(1)); hashLock = true;
+  try {
+    if (p.get('trace') && byId.has(p.get('trace'))) { startTrace(p.get('trace'), p.get('param')); show(+(p.get('step') || 0)); }
+    else if (p.get('walk')) { const wi = (G.walkthroughs || []).findIndex(w => w.id === p.get('walk') || String(G.walkthroughs.indexOf(w)) === p.get('walk')); if (wi >= 0) startWalk(wi, +(p.get('step') || 0)); }
+    else if (p.get('sel') && byId.has(p.get('sel'))) { select(p.get('sel')); focusNode(p.get('sel'), { read: p.has('read') }); }
+    if (p.get('cam')) { const [x, y, k] = p.get('cam').split(',').map(Number); if (anim) { cancelAnimationFrame(anim.raf); anim = null; } Object.assign(cam, { x, y, k }); applyCam(); }
+  } finally { hashLock = false; updateHash(); }
+}
+
+// ---------------------------------------------------------------- boot
+renderLeft(); renderInspector(null);
+let restored = false;
+try { const c = JSON.parse(sessionStorage.getItem('codemap.cam.' + G.repo) || 'null'); if (c && c.k) { Object.assign(cam, c); applyCam(); restored = true; } } catch (e) { }
+if (!restored) fitAll(true);
+if (location.hash.length > 1) applyHash();
+</script>
+</body>
+</html>

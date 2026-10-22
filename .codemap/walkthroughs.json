@@ -1,0 +1,367 @@
+{
+  "version": 1,
+  "walkthroughs": [
+    {
+      "id": "end-to-end-run-optimization-selection-and-held-out-evaluatio-2026-10-22T090303",
+      "title": "End-to-end run: optimization, selection, and held-out evaluation",
+      "question": "What happens when I run `python -m harness_mvp run`?",
+      "summary": "The `run` command orchestrates a black-box harness search: it loads tasks and splits them, creates a model (real or mock) and a code runner, evaluates candidate harness configurations on optimization tasks, selects the winner by most tasks solved (then fewest tokens, then config ID), and finally evaluates the baseline and selected configuration on held-out tasks. All episodes and a final report are written to disk.",
+      "steps": [
+        {
+          "node": "harness_mvp.__main__:<module>",
+          "start": 5,
+          "end": 5,
+          "title": "Entry point invokes main",
+          "text": "When invoked as `python -m harness_mvp`, the `__main__` module calls [[harness_mvp.main.main]] and exits with its return code.",
+          "anchor_sha": "0ce8b86ae2cf1dde"
+        },
+        {
+          "node": "harness_mvp.main.main",
+          "start": 318,
+          "end": 320,
+          "title": "Parse arguments and dispatch",
+          "text": "[[harness_mvp.main.build_parser]] constructs an ArgumentParser with subcommands (run, smoke, report, build-image), parses argv, and dispatches to the chosen command's handler (e.g. [[harness_mvp.main.cmd_run]]).",
+          "anchor_sha": "1247f9a51e4b3c4b"
+        },
+        {
+          "node": "harness_mvp.main.cmd_run",
+          "start": 70,
+          "end": 96,
+          "title": "Load tasks, model, runner, and prepare output directory",
+          "text": "[[harness_mvp.main.cmd_run]] loads environment variables with [[harness_mvp.model.load_dotenv]], loads tasks via [[harness_mvp.tasks.load_tasks]], splits them into optimization and test sets, creates the model (mock or OpenAI-compatible) and runner (Docker or trusted local), samples alternative harness configurations if not enumerating, and initializes the output directory and global budget.",
+          "anchor_sha": "908e2b7224004072"
+        },
+        {
+          "node": "harness_mvp.main.cmd_run",
+          "start": 159,
+          "end": 160,
+          "title": "Run optimization episodes for every candidate",
+          "text": "For each candidate configuration and each optimization task, [[harness_mvp.main.cmd_run.episode]] is called, which invokes [[harness_mvp.agent.run_episode]] to attempt the repair, measure success on hidden tests, and write the episode and transcript to JSONL files.",
+          "anchor_sha": "0ace90b64d27400f"
+        },
+        {
+          "node": "harness_mvp.agent.run_episode",
+          "start": 176,
+          "end": 237,
+          "title": "Episode loop: model requests, code extraction, and test execution",
+          "text": "[[harness_mvp.agent.build_initial_messages]] constructs the prompt with buggy source and public tests. The loop calls the model via [[harness_mvp.agent._call]], extracts code with [[harness_mvp.agent.extract_code]], checks syntax with [[harness_mvp.agent.syntax_error]], runs public tests via the runner, and retries with feedback from [[harness_mvp.agent.build_feedback]] if tests fail. API errors with the retryable flag trigger [[harness_mvp.agent.backoff_delay]] and re-send.",
+          "anchor_sha": "1a9968c9cea5ac5b"
+        },
+        {
+          "node": "harness_mvp.agent.run_episode",
+          "start": 240,
+          "end": 243,
+          "title": "Final hidden-test evaluation",
+          "text": "After attempts complete, if a valid candidate was produced, the runner executes it against hidden tests. The hidden result is never fed back to the model; it determines final success.",
+          "anchor_sha": "50a28ba59b9b9725"
+        },
+        {
+          "node": "harness_mvp.main.cmd_run",
+          "start": 161,
+          "end": 165,
+          "title": "Select winner from optimization episodes",
+          "text": "[[harness_mvp.search.select_winner]] ranks candidates by most tasks solved, then fewest tokens (if known for all), then config ID. The winner and ranking are written to selection.json before any held-out episode runs.",
+          "anchor_sha": "8ed164ff07cf4d05"
+        },
+        {
+          "node": "harness_mvp.main.cmd_run",
+          "start": 170,
+          "end": 178,
+          "title": "Held-out evaluation of baseline and selected config",
+          "text": "The baseline and selected configuration (unless the selected is the baseline) are evaluated on test-split tasks with the specified number of repetitions. Episode order alternates to control for position effects. Each call to [[harness_mvp.main.cmd_run.episode]] writes a new episode record.",
+          "anchor_sha": "e80e6ecb44c1854d"
+        },
+        {
+          "node": "harness_mvp.main.cmd_run",
+          "start": 190,
+          "end": 196,
+          "title": "Finalize manifest and write report",
+          "text": "The manifest is updated with finish time, model calls used, and final status (completed or aborted). [[harness_mvp.report.write_report]] aggregates episodes, selection, and manifest into report.md.",
+          "anchor_sha": "1dbcb8023c8b7d3c"
+        }
+      ],
+      "generated_at": "2026-10-22T09:03:03+00:00",
+      "provenance": {
+        "agent": "claude -p (Claude Code)",
+        "models": [
+          "claude-haiku-4-5-20251001",
+          "claude-sonnet-4-5-20250929"
+        ],
+        "cost_usd": 0.29103945000000003,
+        "session_id": "ce8a8260-b5e6-41ab-81d4-7f4331690f91"
+      },
+      "focus": {
+        "kind": "overview"
+      }
+    },
+    {
+      "id": "model-request-with-retries-budget-enforcement-and-backoff-2026-10-22T090303",
+      "title": "Model request with retries, budget enforcement, and backoff",
+      "question": "How does the agent call the model and handle transient API errors?",
+      "summary": "Every model request goes through the global CallBudget, which enforces a hard cap and optional pacing. If the budget allows, the model's `complete` method is invoked. On transient API errors (429, 5xx, network failures), the episode loop re-sends the request with exponential backoff and respects any server-suggested retry delay, up to the configured number of retries.",
+      "steps": [
+        {
+          "node": "harness_mvp.agent.run_episode",
+          "start": 188,
+          "end": 194,
+          "title": "Retry loop with backoff for transient errors",
+          "text": "For each attempt, the loop tries up to `1 + api_retries` times. On retry_no > 0, [[harness_mvp.agent.backoff_delay]] computes the delay (exponential with server hint), sleeps, then calls [[harness_mvp.agent._call]]. Non-retryable errors (e.g. HTTP 400) or auth errors break immediately.",
+          "anchor_sha": "1ac8673c22c25c4d"
+        },
+        {
+          "node": "harness_mvp.agent._call",
+          "start": 141,
+          "end": 154,
+          "title": "Reserve budget, call model, record result",
+          "text": "[[harness_mvp.model.CallBudget.reserve]] is called first; if the budget is exhausted it raises BudgetExhausted. Otherwise the model's `complete` method is invoked (which may be [[harness_mvp.model.OpenAICompatibleModel.complete]] or [[harness_mvp.model.MockModel.complete]]). A request record with latency, tokens, and error info is returned.",
+          "anchor_sha": "dc66331e7c0b8044"
+        },
+        {
+          "node": "harness_mvp.model.CallBudget.reserve",
+          "start": 71,
+          "end": 80,
+          "title": "Enforce global cap and pacing",
+          "text": "If `used >= max_calls`, raises [[harness_mvp.model.BudgetExhausted]]. If `min_interval_s` is set and the last request was recent, sleeps the difference and accumulates waited_s. Then increments used and records the current time.",
+          "anchor_sha": "803c2448c0f6a171"
+        },
+        {
+          "node": "harness_mvp.model.OpenAICompatibleModel.complete",
+          "start": 156,
+          "end": 192,
+          "title": "POST to chat/completions and parse response",
+          "text": "Constructs the JSON payload with model, messages, temperature, and max_tokens, sends a POST via urllib, and parses the JSON response. On HTTPError, [[harness_mvp.model._error_info]] extracts the error message and retry-after hint, then raises [[harness_mvp.model.AuthError]] for 401/403 or [[harness_mvp.model.APIError]] with retryable=True for 429/5xx.",
+          "anchor_sha": "755002daf025fb4c"
+        },
+        {
+          "node": "harness_mvp.agent.backoff_delay",
+          "start": 161,
+          "end": 163,
+          "title": "Exponential backoff with server hint and cap",
+          "text": "Returns the maximum of `base_s * 2^(retry_no - 1)` and the server's retry_after hint, capped at MAX_BACKOFF_S (120s).",
+          "anchor_sha": "c44f9d021d2da5ae"
+        }
+      ],
+      "generated_at": "2026-10-22T09:03:03+00:00",
+      "provenance": {
+        "agent": "claude -p (Claude Code)",
+        "models": [
+          "claude-haiku-4-5-20251001",
+          "claude-sonnet-4-5-20250929"
+        ],
+        "cost_usd": 0.29103945000000003,
+        "session_id": "ce8a8260-b5e6-41ab-81d4-7f4331690f91"
+      },
+      "focus": {
+        "kind": "overview"
+      }
+    },
+    {
+      "id": "code-extraction-syntax-check-and-isolated-test-execution-2026-10-22T090303",
+      "title": "Code extraction, syntax check, and isolated test execution",
+      "question": "How is code extracted from a model response and safely executed?",
+      "summary": "The agent parses the model's text with regex to extract Python code from fenced blocks (preferring python-tagged and longest), or falls back to raw module detection. Syntax is validated with ast.parse (no execution). Valid code is written to a temporary directory with the test file and executed in an isolated Docker container (or local subprocess for trusted sources) with resource limits and no network.",
+      "steps": [
+        {
+          "node": "harness_mvp.agent.extract_code",
+          "start": 60,
+          "end": 82,
+          "title": "Parse fenced blocks or detect raw module",
+          "text": "The regex `_FENCE` finds all ``` blocks. Python-tagged or untagged blocks are preferred; if multiple exist, the longest is chosen. If no fences are found but the text contains an opening ```, the unterminated content is extracted. If no code is fenced and the text looks like a module (starts with def/class/import) and parses without syntax error, it is accepted as raw.",
+          "anchor_sha": "edd1444e5f1ab45a"
+        },
+        {
+          "node": "harness_mvp.agent.syntax_error",
+          "start": 89,
+          "end": 95,
+          "title": "Static syntax check without execution",
+          "text": "[[harness_mvp.agent.syntax_error]] calls ast.parse on the code string. If a SyntaxError is raised, the line number and message are returned; otherwise None. This ensures malformed code is never sent to the runner.",
+          "anchor_sha": "44d4f118ee50d7db"
+        },
+        {
+          "node": "harness_mvp.runner.DockerRunner.run",
+          "start": 177,
+          "end": 191,
+          "title": "Prepare workdir and run container",
+          "text": "[[harness_mvp.runner._prepare_workdir]] creates a temporary directory with candidate.py and the test file (public or hidden), sets read-only permissions. [[harness_mvp.runner.DockerRunner.command]] builds the docker run command with `--read-only`, `--network none`, memory/CPU/PID limits, and a timeout wrapper. The command is executed via subprocess.run with a host-side timeout; if the container times out, it is forcibly removed.",
+          "anchor_sha": "808472fc16aff4dd"
+        },
+        {
+          "node": "harness_mvp.runner.DockerRunner.run",
+          "start": 192,
+          "end": 199,
+          "title": "Parse test output and classify outcome",
+          "text": "Output is capped to avoid memory issues. [[harness_mvp.runner.classify]] calls [[harness_mvp.runner.parse_unittest_output]] to extract the number of tests run and failed test IDs. If returncode is 0, the unittest summary says OK, and the count matches expected, outcome is 'passed'; otherwise 'failed'. Timeout (returncode 124) or docker errors (125-127) yield 'timeout' or 'runner_error'.",
+          "anchor_sha": "8ac8f69a78078332"
+        },
+        {
+          "node": "harness_mvp.runner.TrustedLocalRunner.run",
+          "start": 226,
+          "end": 245,
+          "title": "Allowlist check and subprocess execution",
+          "text": "Computes the SHA256 hash of the source via [[harness_mvp.tasks.sha256_text]]. If the hash is not in the allowlist, raises PermissionError. Otherwise prepares the workdir, runs `python -m unittest` in a subprocess with a minimal environment and timeout. Output is classified the same way as Docker.",
+          "anchor_sha": "4d78c03a687d8ba5"
+        }
+      ],
+      "generated_at": "2026-10-22T09:03:03+00:00",
+      "provenance": {
+        "agent": "claude -p (Claude Code)",
+        "models": [
+          "claude-haiku-4-5-20251001",
+          "claude-sonnet-4-5-20250929"
+        ],
+        "cost_usd": 0.29103945000000003,
+        "session_id": "ce8a8260-b5e6-41ab-81d4-7f4331690f91"
+      },
+      "focus": {
+        "kind": "overview"
+      }
+    },
+    {
+      "id": "configuration-selection-and-report-generation-2026-10-22T090303",
+      "title": "Configuration selection and report generation",
+      "question": "How is the winning harness configuration chosen and reported?",
+      "summary": "After all optimization episodes finish, select_winner ranks candidates by most tasks solved (hidden tests), then fewest total tokens if known for all, then config_id. The winner and ranking are frozen to selection.json. After held-out evaluation, build_report aggregates episodes by phase, computes success rates and token usage, and writes a markdown report with per-task details and any infrastructure errors.",
+      "steps": [
+        {
+          "node": "harness_mvp.search.select_winner",
+          "start": 66,
+          "end": 81,
+          "title": "Summarize each candidate and rank by key",
+          "text": "For each candidate, [[harness_mvp.search.summarize_candidate]] counts solved episodes (hidden_success=True), LLM calls, and sums total_tokens (or None if any episode is missing usage). The ranking key is `(-solved, tokens if use_tokens else 0, config_id)`, so the candidate with the most solved tasks wins; ties are broken by tokens if available for all, otherwise by config_id.",
+          "anchor_sha": "0f7486ea51e3469a"
+        },
+        {
+          "node": "harness_mvp.search.select_winner",
+          "start": 82,
+          "end": 104,
+          "title": "Determine winner and reliability",
+          "text": "The first element of the sorted ranking is the winner. `decided_by` is set based on whether the top two differ in solved count, tokens, or config_id. Infra errors (api_error, runner_error) are counted; if any exist, `reliable` is False and their episode IDs are listed. The selection record with winner, baseline, ranking, and flags is returned.",
+          "anchor_sha": "b4af4b70b2ac2fa3"
+        },
+        {
+          "node": "harness_mvp.report.build_report",
+          "start": 78,
+          "end": 109,
+          "title": "Load run data and render settings table",
+          "text": "[[harness_mvp.report.load_run]] reads manifest.json, selection.json, and episodes.jsonl. The report starts with a small-sample warning (or synthetic banner if mock). A settings table shows model, endpoint, seed, candidates, max calls, runner, and code version.",
+          "anchor_sha": "870ff9b3167c78c9"
+        },
+        {
+          "node": "harness_mvp.report.build_report",
+          "start": 111,
+          "end": 135,
+          "title": "Optimization phase table with selection outcome",
+          "text": "Optimization episodes are filtered. If selection exists, a table is rendered with each candidate's solved count, first-attempt public pass rate, LLM calls, total tokens, infra errors, and whether it was selected. The selection rule and decided_by are explained. If token tiebreak was skipped due to missing data, a note is added.",
+          "anchor_sha": "ea65a1640bf33517"
+        },
+        {
+          "node": "harness_mvp.report.build_report",
+          "start": 137,
+          "end": 157,
+          "title": "Held-out evaluation comparison table",
+          "text": "Held-out episodes are filtered by baseline and selected config. [[harness_mvp.report.aggregate]] computes metrics (episodes, distinct tasks, success rates, tokens, latency, errors) for each. A side-by-side table compares baseline vs. selected. If the selected is the baseline, a note explains that observations are reused.",
+          "anchor_sha": "0fc74a1192d681a0"
+        },
+        {
+          "node": "harness_mvp.report.build_report",
+          "start": 159,
+          "end": 187,
+          "title": "Per-task details and error summary",
+          "text": "A table lists every episode with phase, task, config, repetition, attempt outcomes, hidden success, calls, tokens, and latency. Episodes with API errors, runner errors, timeouts, or fatal flags are listed with truncated error messages. Missing token data is noted. The report ends with interpretation limits.",
+          "anchor_sha": "a4a49bd107d39827"
+        }
+      ],
+      "generated_at": "2026-10-22T09:03:03+00:00",
+      "provenance": {
+        "agent": "claude -p (Claude Code)",
+        "models": [
+          "claude-haiku-4-5-20251001",
+          "claude-sonnet-4-5-20250929"
+        ],
+        "cost_usd": 0.29103945000000003,
+        "session_id": "ce8a8260-b5e6-41ab-81d4-7f4331690f91"
+      },
+      "focus": {
+        "kind": "overview"
+      }
+    },
+    {
+      "id": "extracting-python-code-from-llm-responses-2026-10-22T091126",
+      "title": "Extracting Python code from LLM responses",
+      "question": "How does extract_code parse model output into executable Python code?",
+      "summary": "extract_code is called by run_episode after receiving a model response. It searches for fenced code blocks (preferring Python and longest), handles unterminated fences from truncated output, falls back to raw Python if the text looks like a module, and validates syntax. It returns (code, status) where status documents the extraction method or failure.",
+      "steps": [
+        {
+          "node": "harness_mvp.agent.run_episode",
+          "start": 215,
+          "end": 216,
+          "title": "Called after model response",
+          "text": "After receiving a response from the model, run_episode calls [[harness_mvp.agent.extract_code]] with the raw text. The returned code and status determine whether the episode proceeds to execution or records a parse failure.",
+          "anchor_sha": "76a243ae1f1edc2e"
+        },
+        {
+          "node": "harness_mvp.agent.extract_code",
+          "start": 62,
+          "end": 66,
+          "title": "Search for fenced blocks",
+          "text": "The regex `_FENCE` finds all ```-delimited blocks. Python-tagged blocks (python/py/python3) are preferred; if none exist, all blocks are kept. Empty blocks are filtered out.",
+          "anchor_sha": "f4f65a5508f2286e"
+        },
+        {
+          "node": "harness_mvp.agent.extract_code",
+          "start": 67,
+          "end": 70,
+          "title": "Single fence or longest",
+          "text": "If exactly one non-empty block is found, it's normalized via [[harness_mvp.agent._norm]] and returned with status 'fenced'. If multiple blocks exist, the longest is chosen (status 'multiple_fences_longest').",
+          "anchor_sha": "b89142c37c972f5d"
+        },
+        {
+          "node": "harness_mvp.agent.extract_code",
+          "start": 73,
+          "end": 78,
+          "title": "Handle unterminated fence",
+          "text": "If no complete fences exist but '```' appears (truncated output), the text after the opening fence is extracted. If non-empty after normalization, it's returned with status 'unterminated_fence'; otherwise 'no_code'.",
+          "anchor_sha": "88e517704568f15d"
+        },
+        {
+          "node": "harness_mvp.agent.extract_code",
+          "start": 80,
+          "end": 81,
+          "title": "Raw module fallback",
+          "text": "If no fences are found but the text contains Python keywords (def/class/import/from) and passes [[harness_mvp.agent.syntax_error]] (parse check without execution), it's treated as raw unfenced code with status 'raw'.",
+          "anchor_sha": "c9be57718b6a4af6"
+        },
+        {
+          "node": "harness_mvp.agent.syntax_error",
+          "start": 89,
+          "end": 95,
+          "title": "Syntax validation",
+          "text": "Attempts to parse the code with ast.parse (no execution). Returns an error message with line number if invalid, or None if syntactically correct. Used both here and after extraction in run_episode:222.",
+          "anchor_sha": "44d4f118ee50d7db"
+        },
+        {
+          "node": "harness_mvp.agent.run_episode",
+          "start": 218,
+          "end": 224,
+          "title": "Outcome recorded",
+          "text": "If extract_code returned None, the attempt outcome is 'no_code'. Otherwise, the code is hashed and syntax-checked; a syntax error sets outcome to 'syntax_error', while valid code proceeds to execution at line 227.",
+          "anchor_sha": "7b5e5704b43e97a6"
+        }
+      ],
+      "generated_at": "2026-10-22T09:11:26+00:00",
+      "provenance": {
+        "agent": "claude -p (Claude Code)",
+        "models": [
+          "claude-haiku-4-5-20251001",
+          "claude-sonnet-4-5-20250929"
+        ],
+        "cost_usd": 0.2520183,
+        "session_id": "b3e4f2b0-1bf1-4a5d-9f5c-d321cd34d8b4"
+      },
+      "focus": {
+        "kind": "node",
+        "node": "harness_mvp.agent.extract_code"
+      }
+    }
+  ]
+}
