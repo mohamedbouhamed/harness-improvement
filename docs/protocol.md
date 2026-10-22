@@ -126,7 +126,7 @@ The following are identical for all three conditions:
 - **Query.** The new task's title and statement.
 - **Score.** Keyword overlap with fixed weights:
   `2 × |query ∩ trigger| + |query ∩ scope| + |query ∩ lesson|`, after lower-casing, stop-word
-  removal and plural stripping.
+  removal and light suffix stripping (`-ies`→`-y`, `-ing`, `-ed`, `-es`, `-s`).
 - **Selection.** Memories need `score ≥ min_score`. They are ordered by (−score, `memory_id`).
   Up to `max_memories` are taken, adding whole lessons while they fit the context budget.
 - **Recording.** Each episode records the selected IDs, their scores and the exact injected text.
