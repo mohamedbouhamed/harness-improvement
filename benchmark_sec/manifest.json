@@ -8,56 +8,76 @@
       "split": "calibration",
       "family": "docshare",
       "class": "path traversal",
-      "witness_kind": "exploit"
+      "witness_kind": "exploit",
+      "task_version": 1
     },
     {
       "id": "cal_teamnotes",
       "split": "calibration",
       "family": "teamnotes",
       "class": "SQL injection",
-      "witness_kind": "reachability"
+      "witness_kind": "reachability",
+      "task_version": 1
     },
     {
       "id": "cal_mediakit",
       "split": "calibration",
       "family": "mediakit",
       "class": "OS command injection",
-      "witness_kind": "reachability"
+      "witness_kind": "reachability",
+      "task_version": 1
     },
     {
       "id": "cal_prefsync",
       "split": "calibration",
       "family": "prefsync",
       "class": "unsafe deserialization",
-      "witness_kind": "reachability"
+      "witness_kind": "reachability",
+      "task_version": 1,
+      "label_status": "ambiguous_twin",
+      "label_note": "Patched twin keeps pickle after the HMAC check; flagging it is a defensible opinion. Kept unchanged with its results; superseded by cal_prefsync_v2 for new runs."
     },
     {
       "id": "cal_miniwiki",
       "split": "calibration",
       "family": "miniwiki",
       "class": "cross-site scripting",
-      "witness_kind": "exploit"
+      "witness_kind": "exploit",
+      "task_version": 1
     },
     {
       "id": "cal_invoicer",
       "split": "calibration",
       "family": "invoicer",
       "class": "missing authorization",
-      "witness_kind": "exploit"
+      "witness_kind": "exploit",
+      "task_version": 1
     },
     {
       "id": "cal_ssohub",
       "split": "calibration",
       "family": "ssohub",
       "class": "open redirect",
-      "witness_kind": "exploit"
+      "witness_kind": "exploit",
+      "task_version": 1
     },
     {
       "id": "cal_pricer",
       "split": "calibration",
       "family": "pricer",
       "class": "code injection",
-      "witness_kind": "reachability"
+      "witness_kind": "reachability",
+      "task_version": 1
+    },
+    {
+      "id": "cal_prefsync_v2",
+      "split": "calibration",
+      "family": "prefsync",
+      "class": "unsafe deserialization",
+      "witness_kind": "reachability",
+      "task_version": 2,
+      "supersedes": "cal_prefsync",
+      "change": "patched twin only: JSON serialization instead of pickle (and deepcopy in _clone); vulnerable variant byte-identical to cal_prefsync"
     }
   ]
 }

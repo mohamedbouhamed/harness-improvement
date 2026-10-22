@@ -152,5 +152,12 @@ of difficulty adjustment; the result is reported whatever it is.
 ## Change log
 
 - `sec-v1`: initial protocol.
+- `sec-v1.1` (after calibration): `cal_prefsync` kept unchanged with its results and marked
+  `label_status: ambiguous_twin` (its twin keeps pickle after the HMAC check). New task version
+  `cal_prefsync_v2`: same vulnerable variant (byte-identical), twin uses JSON. Labels re-checked in
+  Docker and the two twins checked for identical handler behaviour. Results from the two versions
+  are never pooled. Calibration pairs may now also be used for two **exploratory pilots** (guidance
+  check, one-proposal adaptation pilot; docs/guidance-check-plan.md); they are reported as pilots,
+  never as Phase 1/2 results.
 - `sec-v1` amendment (before any task was written): GT location accepts the flawed-validation
   function or the sink function (`g.functions`), instead of a single function.
