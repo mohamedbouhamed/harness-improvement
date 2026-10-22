@@ -61,7 +61,10 @@ an alarm. A finding that satisfies 1 and 2 but not 3 is additionally counted as 
 Per episode (one agent run on one program):
 
 - vulnerable program: `detected` (GT matched), `extra_alarms` (unmatched findings);
-- twin: `clean` (zero findings), `alarms` (number of findings);
+- twin: `clean` (an explicit submission with zero findings), `alarms` (number of findings);
+- an episode that ends without `submit_findings` (limits, parse failures, API errors) counts as
+  not detected **and** not clean, so running out of turns is never rewarded; its rate is reported;
+- malformed findings (missing file/cwe) are counted as alarms and reported as `malformed`;
 - `misclassified`; `path_coverage` = |f.path ∩ g.path| / |g.path| for the matching finding;
 - model calls, tool calls, parse errors, billed input/output tokens, cost, latency.
 
@@ -69,6 +72,17 @@ Per episode (one agent run on one program):
 {0, 0.5, 1}. Flagging everything gives 0.5 and flagging nothing gives 0.5, so the score rewards
 discrimination, not volume. Reported alongside: detection rate, twin false-alarm rate, precision
 (matched findings / all findings), misclassified, path coverage.
+
+## Witness tests (label validation only)
+
+Each pair has `test_functional.py` (must pass on both variants) and `test_exploit.py` (must fail on
+the vulnerable variant through an assertion, and pass on the patched one). Witnesses never contain
+working attack payloads. For classes where a direct check is just reading planted test data (path
+traversal, SQL injection, XSS, missing authorization, open redirect), the witness checks that the
+marker value is not exposed. For classes whose direct demonstration would be code execution
+(command injection, unsafe deserialization, code injection), the witness instruments the sensitive
+call (e.g. replaces `subprocess.run` or `pickle.loads` with a recorder) and asserts that untrusted
+input does not reach it unchecked. Witnesses are never shown to the agent.
 
 ## Repetitions and uncertainty
 

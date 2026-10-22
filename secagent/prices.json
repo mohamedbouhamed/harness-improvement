@@ -1,0 +1,9 @@
+{
+  "source": "https://ai.google.dev/gemini-api/docs/pricing (paid tier, standard, text input; output price includes thinking tokens)",
+  "retrieved": "2026-10-22 (page 'Last updated 2026-10-22 UTC')",
+  "confirmed_by_user": false,
+  "models": {
+    "gemini-3.5-flash-lite": {"input_usd_per_m": 0.30, "output_usd_per_m": 2.50},
+    "gemini-3.5-flash": {"input_usd_per_m": null, "output_usd_per_m": null, "note": "not looked up yet"}
+  }
+}

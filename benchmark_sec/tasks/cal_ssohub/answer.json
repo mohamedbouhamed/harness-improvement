@@ -1,0 +1,9 @@
+{
+  "class": "open redirect",
+  "cwe": "CWE-601",
+  "file": "ssohub/redirects.py",
+  "functions": ["is_local_target", "after_login"],
+  "source": "SsoApp.handle_login params['next']",
+  "path": ["handle_login", "after_login", "is_local_target"],
+  "summary": "A target is accepted when it starts with '/' and contains no '://', so protocol-relative '//host/...' (and '/\\host') targets redirect users to another site after login."
+}

@@ -1,0 +1,9 @@
+{
+  "class": "cross-site scripting",
+  "cwe": "CWE-79",
+  "file": "miniwiki/render.py",
+  "functions": ["attr", "render_page"],
+  "source": "WikiApp.handle_save params['title'], rendered later by handle_view",
+  "path": ["handle_save", "handle_view", "render_page", "attr"],
+  "summary": "The page title is placed in a double-quoted title attribute using html.escape(quote=False), so a quote in the title ends the attribute and can add event-handler attributes."
+}

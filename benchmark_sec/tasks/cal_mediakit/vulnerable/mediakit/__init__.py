@@ -1,0 +1,1 @@
+"""Newsroom media helper."""

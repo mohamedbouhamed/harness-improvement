@@ -1,0 +1,9 @@
+{
+  "class": "code injection",
+  "cwe": "CWE-95",
+  "file": "pricer/rules.py",
+  "functions": ["preview_bundle"],
+  "source": "PricerApp.handle_bundle_preview params['formula']",
+  "path": ["handle_bundle_preview", "preview_bundle"],
+  "summary": "The customer's formula is compiled and passed to eval; emptying __builtins__ is not a sandbox, while operator rules use the safe AST evaluator."
+}

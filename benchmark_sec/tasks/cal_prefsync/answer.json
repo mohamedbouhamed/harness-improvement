@@ -1,0 +1,9 @@
+{
+  "class": "unsafe deserialization",
+  "cwe": "CWE-502",
+  "file": "prefsync/state.py",
+  "functions": ["load_state"],
+  "source": "PrefSyncApp.handle_restore / handle_update params['state']",
+  "path": ["handle_restore", "load_state"],
+  "summary": "The client-supplied blob is unpickled before its HMAC is verified, so any bytes reach pickle.loads."
+}

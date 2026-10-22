@@ -1,0 +1,9 @@
+{
+  "class": "SQL injection",
+  "cwe": "CWE-89",
+  "file": "teamnotes/reports.py",
+  "functions": ["_notes_by_author", "activity_report"],
+  "source": "TeamNotesApp.handle_update_profile params['display_name'], stored, then read back by handle_activity",
+  "path": ["handle_update_profile", "update_profile", "handle_activity", "activity_report", "_notes_by_author"],
+  "summary": "Second-order injection: the display name is stored safely with parameters but later formatted into the WHERE clause of the report query."
+}

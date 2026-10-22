@@ -1,0 +1,9 @@
+{
+  "class": "missing authorization",
+  "cwe": "CWE-639",
+  "file": "invoicer/api.py",
+  "functions": ["handle_export"],
+  "source": "InvoicerApp.handle_export params['id']",
+  "path": ["handle_export"],
+  "summary": "Export checks only that the caller has a member role and fetches the invoice by id without the ownership check used by the other handlers (insecure direct object reference)."
+}

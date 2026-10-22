@@ -1,0 +1,9 @@
+{
+  "class": "path traversal",
+  "cwe": "CWE-22",
+  "file": "docshare/storage.py",
+  "functions": ["_resolve", "read"],
+  "source": "DocshareApp.handle_download params['name'] (also handle_browse params['folder'])",
+  "path": ["handle_download", "read", "_resolve"],
+  "summary": "Containment check uses a plain string prefix: ../docs-internal/x normalises to <root>/docs-internal/x, which starts with <root>/docs, so sibling directories are readable."
+}

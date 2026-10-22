@@ -1,0 +1,9 @@
+{
+  "class": "OS command injection",
+  "cwe": "CWE-78",
+  "file": "mediakit/probe.py",
+  "functions": ["describe", "_shell", "_check_name"],
+  "source": "MediaApp.handle_inspect params['filename']",
+  "path": ["handle_inspect", "describe", "_shell"],
+  "summary": "The file name is placed in a shell command inside double quotes; the character blocklist misses $() and backticks, which double quotes do not neutralise."
+}
