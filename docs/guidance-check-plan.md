@@ -82,8 +82,8 @@ No outcome changed: 0 of 8 programs per condition differ from the reference. No 
 non-submissions. Mean per episode: checklist 7,666 in / 158 out tokens, 3.75 calls, 10.3 s;
 lessons 9,155 / 165, 3.88 calls, 8.6 s. Cost of the run: reported €0.0355, upper bound €0.665.
 
-Observation from the traces: in every missed episode the agent read the file with the flaw
-(storage.py, render.py) and submitted an empty list in the next reply, with no written analysis
-(13–16 output tokens). Even lessons that describe the flaw almost explicitly did not change this.
-This says only that these two texts did not move these four pairs on this model; it does not show
-that memory cannot help.
+Observation from the traces: in every missed episode the agent read the file containing the
+planted weakness (storage.py, render.py) and then submitted no findings. Short visible outputs do
+not show whether or how the model reasoned (thinking is not reported by the endpoint), so no cause
+is inferred here. This says only that these two texts did not move these four pairs on this
+model; it does not show that memory cannot help.
