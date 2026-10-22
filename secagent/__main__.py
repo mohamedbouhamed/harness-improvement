@@ -28,7 +28,7 @@ def _tasks(split):
 
 def cmd_validate(args) -> int:
     runner = DockerRunner(Path(tempfile.mkdtemp(prefix="sec-validate-")))
-    runner.ensure_ready(build=False)
+    runner.ensure_ready(build=True)  # builds the runner image on a fresh machine
     bad = 0
     for t in _tasks(args.split):
         res = validate_labels(t, runner)
