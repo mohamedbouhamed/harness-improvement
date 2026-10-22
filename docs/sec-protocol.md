@@ -152,6 +152,10 @@ of difficulty adjustment; the result is reported whatever it is.
 ## Change log
 
 - `sec-v1`: initial protocol.
+- `sec-v1.2` (after the first adaptation pilot): new editable surface `harness/verification.md`
+  (empty = original harness, verified by replaying all historical none/T = 0 episodes), feedback
+  proposer, acceptance rule extended with "twin findings and non-submissions not increased".
+  Details and budget tiers: docs/iteration2-plan.md.
 - `sec-v1.1` (after calibration): `cal_prefsync` kept unchanged with its results and marked
   `label_status: ambiguous_twin` (its twin keeps pickle after the HMAC check). New task version
   `cal_prefsync_v2`: same vulnerable variant (byte-identical), twin uses JSON. Labels re-checked in
