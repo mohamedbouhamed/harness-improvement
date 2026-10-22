@@ -125,6 +125,16 @@ class Cost(unittest.TestCase):
                 m.complete([{"role": "user", "content": "x"}])
         sent.assert_not_called()
 
+    def test_cap_uses_upper_bound_not_reported_cost(self):
+        body = {"model": "m1", "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 1, "total_tokens": 11}}
+        m = self.model(0.015)  # bound per request ~ $0.01 (full 1000-token allowance at $10/M)
+        with mock.patch("urllib.request.urlopen", return_value=http_response(body)):
+            m.complete([{"role": "user", "content": "x"}])
+            self.assertLess(m.ledger.spent_eur, 0.001)
+            with self.assertRaises(BudgetExhausted):  # reported cost is tiny, but the bound blocks
+                m.complete([{"role": "user", "content": "x"}])
+
     def test_unconfirmed_prices_refused(self):
         with self.assertRaises(RuntimeError):
             MeteredModel(self.settings, Price("m1", 1, 1, "s", "d", False), CostLedger(self.dir / "x", 1, 1), run_id="r")

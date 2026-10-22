@@ -100,7 +100,8 @@ def cmd_run(args) -> int:
                api_retries=args.api_retries, manifest_extra={"cli": vars(args) | {"func": None}})
     print(f"report: {write_report(out, f'{args.split} run ({out.name})')}")
     if args.live:
-        print(f"ledger total: {CostLedger(LEDGER, args.cap_eur, args.usd_to_eur).spent_eur:.4f} EUR")
+        led = CostLedger(LEDGER, args.cap_eur, args.usd_to_eur)
+        print(f"ledger: reported {led.spent_eur:.4f} EUR, upper bound {led.bound_eur:.4f} EUR (cap {args.cap_eur} EUR)")
     return 0
 
 

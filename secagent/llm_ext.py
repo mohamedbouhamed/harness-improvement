@@ -65,12 +65,22 @@ class CostLedger:
 
     @property
     def spent_eur(self) -> float:
+        """Cost from provider-reported usage."""
         return sum(e["cost_eur"] for e in self.entries())
 
+    @property
+    def bound_eur(self) -> float:
+        """Upper bound used for the cap: every successful request billed as if it used the whole output
+        allowance (covers thinking tokens the endpoint might not report). Entries without a bound
+        (failed or older requests) count with their reserved amount, or their cost if larger."""
+        return sum(e.get("upper_bound_eur") if e.get("upper_bound_eur") is not None
+                   else max(e["cost_eur"], e.get("reserved_eur", 0.0) if e.get("status") == "ok" else e["cost_eur"])
+                   for e in self.entries())
+
     def reserve(self, worst_eur: float) -> None:
-        if self.spent_eur + worst_eur > self.cap_eur:
-            raise BudgetExhausted(f"cost cap {self.cap_eur:.2f} EUR: spent {self.spent_eur:.4f}, "
-                                  f"next request may cost up to {worst_eur:.4f}")
+        if self.bound_eur + worst_eur > self.cap_eur:
+            raise BudgetExhausted(f"cost cap {self.cap_eur:.2f} EUR (upper-bound basis): bound so far "
+                                  f"{self.bound_eur:.4f}, reported {self.spent_eur:.4f}, next request up to {worst_eur:.4f}")
 
     def append(self, entry: dict) -> None:
         with self.path.open("a", encoding="utf-8") as fh:
@@ -159,8 +169,9 @@ class MeteredModel:
         usage = data.get("usage") or {}
         inp, out = usage.get("prompt_tokens"), billable_output(usage)
         cost = self._eur(inp, out) if inp is not None and out is not None else worst
+        bound = self._eur(inp if inp is not None else est_in, max(out or 0, s.max_tokens))
         entry.update(status="ok", returned_model=data.get("model"), usage=usage, billed_input_tokens=inp,
-                     billed_output_tokens=out, cost_eur=round(cost, 6),
+                     billed_output_tokens=out, cost_eur=round(cost, 6), upper_bound_eur=round(bound, 6),
                      output_over_allowance=bool(out is not None and out > s.max_tokens))
         self.ledger.append(entry)
         if native is not None:
