@@ -96,8 +96,22 @@ def function_declarations() -> list[dict]:
         for n, (a, d) in TOOLS.items()]
 
 
+VERIFY_TEMPLATE = """Your findings are not final yet. Verification step:
+{text}
+
+Your draft findings ({n}):
+{draft}
+
+You may use the read-only tools again within your remaining limits. Then call submit_findings with your final list."""
+
+
 def read_instructions(path: Path = HARNESS_DIR / "instructions.md") -> str:
     return path.read_text(encoding="utf-8").strip()
+
+
+def read_verification(path: Path = HARNESS_DIR / "verification.md") -> str:
+    """Optional editable verification step; empty means the original single-submission harness."""
+    return path.read_text(encoding="utf-8").strip() if path.is_file() else ""
 
 
 def system_prompt(instructions: str, limits: DetectLimits) -> str:
@@ -198,8 +212,14 @@ class ReadOnlyRepo:
 
 def run_episode(task: SecTask, variant: str, model, budget: CallBudget, *, episode_id: str, condition: str,
                 repetition: int, instructions: str, guidance: str, limits: DetectLimits = DetectLimits(),
-                api_retries: int = 2, retry_wait_s: float = 10.0, log=None) -> tuple[dict, list[dict]]:
-    """Returns (episode record with score, transcript entries)."""
+                api_retries: int = 2, retry_wait_s: float = 10.0, log=None, verification: str = "") -> tuple[dict, list[dict]]:
+    """Returns (episode record with score, transcript entries).
+
+    With a non-empty `verification`, the first submit_findings is a draft: the agent receives the
+    verification text and its draft, and its next submit_findings is final. The step uses the same
+    model-call and action limits as every other turn. If the limits run out after a draft, the draft
+    is the submission. With an empty `verification` the loop is exactly the original one.
+    """
     log = log or (lambda m: None)
     t0, started = time.perf_counter(), llm.now_iso()
     files = task.variant_files(variant)
@@ -208,6 +228,7 @@ def run_episode(task: SecTask, variant: str, model, budget: CallBudget, *, episo
                 {"role": "user", "content": first_message(files, guidance)}]
     turns, transcript = [], []
     tool_calls, findings, end_reason, fatal = 0, None, "model_call_limit", None
+    draft, verify_msg = None, None
     requested_model = getattr(getattr(model, "settings", None), "model", None)
     for turn_no in range(1, limits.max_model_calls + 1):
         context = {"tools": function_declarations(), "label": f"{episode_id} t{turn_no}",
@@ -222,7 +243,8 @@ def run_episode(task: SecTask, variant: str, model, budget: CallBudget, *, episo
         turn = {"turn": turn_no, "requests": requests, "parse_error": None, "actions": []}
         turns.append(turn)
         transcript.append({"episode_id": episode_id, "turn": turn_no, "messages": list(messages),
-                           "response": resp.text if resp else None})
+                           "response": resp.text if resp else None,
+                           "content_text": getattr(resp, "content_text", None) if resp else None})
         if resp is None:
             end_reason = fatal or "api_error"
             break
@@ -239,7 +261,13 @@ def run_episode(task: SecTask, variant: str, model, budget: CallBudget, *, episo
                 break
             tool_calls += 1
             if call["name"] == "submit_findings":
-                findings = call["args"]["findings"][:limits.max_findings]
+                submitted = call["args"]["findings"][:limits.max_findings]
+                if verification and draft is None and turn_no < limits.max_model_calls:
+                    draft = submitted
+                    turn["actions"].append({"name": "submit_findings", "n": len(draft), "draft": True})
+                    verify_msg = VERIFY_TEMPLATE.format(text=verification, n=len(draft), draft=json.dumps(draft, indent=1))
+                    break
+                findings = submitted
                 turn["actions"].append({"name": "submit_findings", "n": len(findings)})
                 break
             ok, out = repo.run(call["name"], call["args"], limits)
@@ -252,7 +280,13 @@ def run_episode(task: SecTask, variant: str, model, budget: CallBudget, *, episo
         if tool_calls >= limits.max_tool_calls:
             end_reason = "tool_call_limit"
             break
+        if verify_msg is not None:
+            messages.append({"role": "user", "content": verify_msg})
+            verify_msg = None
+            continue
         messages.append({"role": "user", "content": "Action results:\n\n" + "\n\n".join(results)})
+    if findings is None and draft is not None:  # limits ran out during verification: the draft stands
+        findings, end_reason = draft, "submitted_draft"
 
     # ---- Episode over: no more model calls. Scoring uses the answer key, never shown to the model. ----
     score = score_episode(task, variant, findings)
@@ -263,6 +297,8 @@ def run_episode(task: SecTask, variant: str, model, budget: CallBudget, *, episo
         "synthetic": bool(getattr(model, "synthetic", False)), "started_at": started,
         "task_hashes": task.hashes(), "guidance_chars": len(guidance), "guidance_est_tokens": estimate_tokens(guidance),
         "end_reason": end_reason, "fatal": fatal, "findings": findings, "score": score,
+        "verification": {"enabled": bool(verification), "draft": draft,
+                         "changed": None if draft is None else draft != findings},
         "model_calls": len(reqs), "tool_calls": tool_calls, "parse_errors": sum(1 for t in turns if t["parse_error"]),
         "files_read": sorted({a["args"]["path"] for t in turns for a in t["actions"] if a["name"] == "read_file"}),
         "input_tokens": llm.sum_or_none(r["input_tokens"] for r in reqs),

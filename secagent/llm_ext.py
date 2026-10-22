@@ -181,6 +181,7 @@ class MeteredModel:
         r = ModelResponse(text, inp, out, usage.get("total_tokens"), latency, choice.get("finish_reason"),
                           data.get("model"), n_native)
         r.raw_usage, r.requested_model, r.cost_eur = usage, s.model, cost
+        r.content_text = choice["message"].get("content")  # logged only; the conversation uses `text`
         if entry["output_over_allowance"]:
             # The reservation assumed output <= max_tokens. Stop rather than risk overrunning the cap.
             raise BudgetExhausted(f"billed output {out} exceeded max_tokens {s.max_tokens}; reservation unsafe")

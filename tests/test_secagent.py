@@ -166,5 +166,46 @@ class Proposal(unittest.TestCase):
         self.assertEqual(pat[0]["planted_weakness"]["file"], "docshare/storage.py")
 
 
+class Iteration2(unittest.TestCase):
+    def test_verification_step_makes_first_submission_a_draft(self):
+        tasks = list(TASKS.values())
+        rec, tr = run_episode(DOC, "vulnerable", MockDetector(tasks), CallBudget(10), episode_id="e", condition="candidate",
+                              repetition=1, instructions="i", guidance="", verification="Re-check each finding.")
+        self.assertEqual((rec["model_calls"], rec["end_reason"], rec["verification"]["enabled"]), (3, "submitted", True))
+        self.assertIn("Verification step:\nRe-check each finding.", tr[-1]["messages"][-1]["content"])
+        self.assertTrue(rec["score"]["detected"])
+
+    def test_draft_counts_when_limits_run_out(self):
+        rec, _ = run_episode(DOC, "vulnerable", MockDetector(list(TASKS.values())), CallBudget(2), episode_id="e",
+                             condition="candidate", repetition=1, instructions="i", guidance="", verification="v")
+        self.assertEqual(rec["end_reason"], "submitted_draft")
+        self.assertTrue(rec["score"]["detected"])
+
+    def test_empty_verification_keeps_original_loop(self):
+        rec, _ = run_episode(DOC, "vulnerable", MockDetector(list(TASKS.values())), CallBudget(10), episode_id="e",
+                             condition="none", repetition=1, instructions="i", guidance="", verification="")
+        self.assertEqual((rec["model_calls"], rec["verification"]["draft"]), (2, None))
+
+    def test_feedback_validation(self):
+        from secagent.propose import validate_feedback_proposal
+        orig = {"harness/instructions.md": "orig", "harness/verification.md": ""}
+        ok = {"change": {"harness/instructions.md": None, "harness/verification.md": "Check that each finding has a concrete path."}}
+        self.assertEqual(validate_feedback_proposal(ok, [DOC], orig), [])
+        copied = {"change": {"harness/verification.md": "Remember: containment check uses a plain string prefix often"}}
+        self.assertTrue(any("copies" in x for x in validate_feedback_proposal(copied, [DOC], orig)))
+        outside = {"change": {"secagent/agent.py": "x"}}
+        self.assertTrue(validate_feedback_proposal(outside, [DOC], orig))
+
+    def test_acceptance_rule(self):
+        from secagent.iter2 import accept
+        pair = lambda solved, fp=0, end="submitted": {"solved": solved, "twin_findings": fp, "vulnerable_end": end,
+                                                     "twin_end": end, "complete": True}
+        base = {"a": pair(True), "b": pair(False), "c": pair(False)}
+        self.assertTrue(accept(base, {"a": pair(True), "b": pair(True), "c": pair(False)})[0])
+        self.assertFalse(accept(base, {"a": pair(False), "b": pair(True), "c": pair(True)})[0])   # lost a solved pair
+        self.assertFalse(accept(base, {"a": pair(True), "b": pair(True), "c": pair(False, fp=1)})[0])  # more twin findings
+        self.assertFalse(accept(base, {"a": pair(True), "b": pair(False), "c": pair(False)})[0])  # no gain
+
+
 if __name__ == "__main__":
     unittest.main()

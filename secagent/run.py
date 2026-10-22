@@ -10,15 +10,15 @@ from pathlib import Path
 from harness_mvp.contracts import canonical_hash, sha256_text
 from harness_mvp.model import CallBudget, ModelResponse
 
-from .agent import DetectLimits, read_instructions, run_episode, system_prompt, first_message, function_declarations
+from .agent import DetectLimits, read_instructions, read_verification, run_episode, system_prompt, first_message, function_declarations
 from .tasks import VARIANTS, SecTask
 
 CONTROLS = Path(__file__).resolve().parent / "controls"
-CONDITIONS = ("none", "checklist", "lessons", "memory", "proposed")
+CONDITIONS = ("none", "checklist", "lessons", "memory", "proposed", "candidate")
 
 
 def guidance_for(condition: str) -> str:
-    if condition == "none":
+    if condition in ("none", "candidate"):  # candidate = edited instructions/verification files, no extra guidance
         return ""
     if condition in ("checklist", "lessons"):
         return (CONTROLS / f"{condition}.md").read_text(encoding="utf-8").strip()
@@ -81,12 +81,13 @@ def run_matrix(tasks: list[SecTask], conditions: list[str], reps: int, model, bu
                api_retries: int = 2, retry_wait_s: float = 10.0, log=print, manifest_extra: dict | None = None) -> list[dict]:
     """Every task x variant x condition x repetition, in a seeded shuffled order. Writes JSONL as it goes."""
     instructions = read_instructions() if instructions is None else instructions
+    verification = read_verification()
     plan = [(t, v, c, r) for t in tasks for v in variants for c in conditions for r in range(1, reps + 1)]
     random.Random(seed).shuffle(plan)
     manifest = {"created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": seed,
                 "synthetic": bool(getattr(model, "synthetic", False)), "tasks": [t.task_id for t in tasks],
                 "conditions": conditions, "reps": reps, "limits": limits.to_dict(),
-                "instructions_sha256": sha256_text(instructions),
+                "instructions_sha256": sha256_text(instructions), "verification_sha256": sha256_text(verification),
                 "guidance_sha256": {c: sha256_text(guidance_for(c)) for c in conditions},
                 "task_hashes": {t.task_id: t.hashes() for t in tasks}, "episodes_planned": len(plan),
                 "model": model.describe() if hasattr(model, "describe") else {"backend": "mock"},
@@ -100,7 +101,8 @@ def run_matrix(tasks: list[SecTask], conditions: list[str], reps: int, model, bu
             log(f"[{i}/{len(plan)}] {eid}")
             rec, transcript = run_episode(task, variant, model, budget, episode_id=eid, condition=cond, repetition=rep,
                                           instructions=instructions, guidance=guidance_for(cond), limits=limits,
-                                          api_retries=api_retries, retry_wait_s=retry_wait_s, log=log)
+                                          api_retries=api_retries, retry_wait_s=retry_wait_s, log=log,
+                                          verification=verification)
             rec["order_position"] = i
             ep.write(json.dumps(rec) + "\n")
             ep.flush()

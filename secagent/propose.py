@@ -148,3 +148,165 @@ def apply_proposal(p: dict) -> list[str]:
         path.write_text(old, encoding="utf-8")
         raise RuntimeError(f"edit touched read-only files: {outside}")
     return after
+
+
+# ---------------------------------------------------------------------------------------------
+# Iteration 2: proposal with feedback from the rejected edit (docs/iteration2-plan.md)
+# ---------------------------------------------------------------------------------------------
+
+ITER2_EDITABLE = ("harness/instructions.md", "harness/verification.md")
+ITER2_LIMITS = {"harness/instructions.md": 2500, "harness/verification.md": 1200}
+
+FEEDBACK_PROMPT = """You improve the harness of a security-review agent. The agent reads a small Python repository with read-only tools (list_files, read_file, search) and finishes with submit_findings. It is scored on two things per program pair: reporting the planted weakness in the vulnerable version, and reporting nothing for the fixed version (its twin). A pair is solved only if both hold.
+
+## The harness you may change
+- harness/instructions.md: the reviewer instructions placed at the start of the system prompt.
+- harness/verification.md: an optional verification step, empty in the original harness. If it is non-empty, the agent's first submit_findings becomes a draft: the agent receives this message
+---
+{verify_template}
+---
+and its next submit_findings is final. The step shares the same limits as everything else ({calls} replies, {actions} actions per episode); if the limits run out after a draft, the draft counts.
+Nothing else can change: not the tools, the limits, the model, the tasks or the scoring.
+
+## Original harness (the starting point for your change)
+### harness/instructions.md
+{instructions}
+### harness/verification.md
+(empty)
+
+## A previous attempt, which was rejected
+It added this line to instructions.md:
+{previous_edit}
+Its stated pattern: {previous_pattern}
+Training results, original harness vs the previous attempt (one pair per line):
+{before_after}
+
+## Training programs: threat model and planted weaknesses
+{ground_truth}
+
+## Training episodes (actions, findings with the agent's own stated reasons)
+{traces}
+
+## Your task
+1. Explain a plausible cause of the previous attempt's regression and of the remaining misses, using the evidence above.
+2. Propose ONE targeted change, starting from the original harness: rewrite instructions.md, write a verification step, or both, as one coherent change. A useful change must be general: the evaluation uses different programs, so name no file, function, variable or program from these examples, do not quote their code or the explanations above, and do not add rules that only fit these programs.
+3. Predict which behaviour should change and what could get worse.
+
+Reply with one JSON object only:
+{{"cause": "...", "change": {{"harness/instructions.md": "<complete new text, or null to keep the original>", "harness/verification.md": "<complete text, or null to keep it empty>"}}, "predicted_improvement": "...", "predicted_risks": "..."}}
+Limits: instructions.md at most {ins_limit} characters; verification.md at most {ver_limit} characters."""
+
+
+def _episode_trace(r: dict, max_reason: int = 700) -> dict:
+    s = r["score"]
+    if not s["submitted"]:
+        outcome = "no submission"
+    elif r["variant"] == "vulnerable":
+        outcome = "planted weakness reported" if s["detected"] else "planted weakness NOT reported (false negative)"
+    else:
+        outcome = "nothing reported (correct)" if not s["n_findings"] else f"{s['n_findings']} finding(s) on the fixed version (false positive)"
+    actions = [a["name"] + (f" {a['args'].get('path') or a['args'].get('query')}" if a.get("args") else "")
+               for t in r["turns"] for a in t["actions"] if a["name"] != "submit_findings"]
+    return {"program": r["family"], "version": r["variant"], "harness": r["condition"], "outcome": outcome,
+            "actions": actions, "model_calls": r["model_calls"],
+            "findings": [{k: (str(f.get(k))[:max_reason] if k == "reason" else f.get(k)) for k in ("file", "function", "cwe", "reason")}
+                         for f in (r["findings"] or [])]}
+
+
+def build_feedback_prompt(baseline: list[dict], candidate: list[dict], tasks: dict, previous: dict,
+                          instructions: str, limits) -> str:
+    from .agent import VERIFY_TEMPLATE
+
+    def pair_line(recs, fam):
+        v = next((r for r in recs if r["family"] == fam and r["variant"] == "vulnerable"), None)
+        p = next((r for r in recs if r["family"] == fam and r["variant"] == "patched"), None)
+        det = bool(v and v["score"]["detected"])
+        fp = p["score"]["n_findings"] if p and p["score"]["submitted"] else "no submission"
+        return f"detected={det}, twin findings={fp}, solved={bool(det and p and p['score']['clean'])}"
+
+    fams = sorted({tasks[r["task_id"]].family for r in baseline})
+    before_after = "\n".join(f"- {f}: original: {pair_line(baseline, f)} | previous attempt: {pair_line(candidate, f)}" for f in fams)
+    gt = []
+    for tid in sorted({r["task_id"] for r in baseline}):
+        t, a = tasks[tid], tasks[tid].answer
+        readme = t.variant_files("vulnerable")["README.md"].strip()
+        gt.append(f"### {t.family}\nREADME (threat model):\n{readme}\nPlanted weakness ({a['class']}, {a['cwe']}): "
+                  f"{a['file']} in {', '.join(a['functions'])}; path {' -> '.join(a['path'])}. {a['summary']}\n"
+                  f"The fixed version changes only the code needed to remove it.")
+    traces = [_episode_trace(r) for r in sorted(baseline + candidate, key=lambda r: (r["family"], r["variant"], r["condition"]))]
+    return FEEDBACK_PROMPT.format(verify_template=VERIFY_TEMPLATE.format(text="<text of harness/verification.md>", n="N", draft="<draft findings>"),
+                                  calls=limits.max_model_calls, actions=limits.max_tool_calls, instructions=instructions,
+                                  previous_edit=previous["line"], previous_pattern=previous["pattern"], before_after=before_after,
+                                  ground_truth="\n\n".join(gt), traces=json.dumps(traces, indent=1),
+                                  ins_limit=ITER2_LIMITS["harness/instructions.md"], ver_limit=ITER2_LIMITS["harness/verification.md"])
+
+
+def parse_feedback_proposal(text: str) -> tuple[dict | None, str | None]:
+    m = re.search(r"\{.*\}", text or "", re.DOTALL)
+    if not m:
+        return None, "no JSON object"
+    try:
+        p = json.loads(m.group(0))
+    except json.JSONDecodeError as exc:
+        return None, f"invalid JSON: {exc.msg}"
+    missing = [k for k in ("cause", "change", "predicted_improvement", "predicted_risks")
+               if not (isinstance(p.get(k), dict) if k == "change" else isinstance(p.get(k), str) and p[k].strip())]
+    if missing:
+        return None, f"missing fields {missing}"
+    return p, None
+
+
+def _shingles(text: str, n: int = 6) -> set[tuple]:
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    return {tuple(words[i:i + n]) for i in range(len(words) - n + 1)}
+
+
+def validate_feedback_proposal(p: dict, train_tasks: list[SecTask], original: dict[str, str]) -> list[str]:
+    problems = []
+    change = {k: v for k, v in p["change"].items() if v is not None}
+    unknown = sorted(set(p["change"]) - set(ITER2_EDITABLE))
+    if unknown:
+        problems.append(f"changes files outside the allowed surface: {unknown}")
+    if not change:
+        problems.append("no change proposed")
+    for path, text in change.items():
+        if path not in ITER2_EDITABLE:
+            continue
+        if not isinstance(text, str):
+            problems.append(f"{path}: content must be text")
+            continue
+        if len(text) > ITER2_LIMITS[path]:
+            problems.append(f"{path}: too long ({len(text)} > {ITER2_LIMITS[path]})")
+        if text.strip() == original.get(path, "").strip():
+            problems.append(f"{path}: identical to the original")
+        if path == "harness/instructions.md" and not text.strip():
+            problems.append("instructions.md must not be empty")
+        problems += [f"{path}: {x}" for x in validate_proposal({"target": "harness/memory.md", "new_content": text}, train_tasks)
+                     if "target" not in x and "too long" not in x]
+        answers = set()
+        for t in train_tasks:
+            answers |= _shingles(t.answer["summary"]) | _shingles(t.variant_files("vulnerable")["README.md"])
+        copied = _shingles(text) & answers
+        if copied:
+            problems.append(f"{path}: copies text from training answers or READMEs: {[' '.join(c) for c in sorted(copied)[:3]]}")
+    return problems
+
+
+def apply_files(change: dict[str, str], allowed=ITER2_EDITABLE) -> list[str]:
+    """Write the changed editable files, then verify that nothing outside `allowed` differs from HEAD."""
+    if changed_files():
+        raise RuntimeError(f"working tree not clean before applying: {changed_files()}")
+    old = {}
+    for path, text in change.items():
+        if text is None:
+            continue
+        f = REPO_ROOT / path
+        old[path] = f.read_text(encoding="utf-8") if f.is_file() else ""
+        f.write_text(text.strip() + "\n", encoding="utf-8")
+    after = changed_files()
+    outside = [f for f in after if f not in allowed]
+    if outside:
+        for path, text in old.items():
+            (REPO_ROOT / path).write_text(text, encoding="utf-8")
+        raise RuntimeError(f"edit touched read-only files: {outside}")
+    return after
