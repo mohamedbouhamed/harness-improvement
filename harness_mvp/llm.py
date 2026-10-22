@@ -65,7 +65,8 @@ def request(model, messages, budget: CallBudget, context: dict, *, api_retries: 
             return None, records, "budget_exhausted", waited
         records.append(rec)
         log(f"request #{budget.used}/{budget.max_calls} ({label}): "
-            + (f"ok in {rec['latency_s']:.1f}s" if rec["ok"] else rec["error"][:90]))
+            + (f"ok in {rec['latency_s']:.1f}s, out={rec['output_tokens']} tok, finish={rec['finish_reason']}"
+               if rec["ok"] else rec["error"][:90]))
         if isinstance(result, AuthError):
             return None, records, "auth_error", waited
         if not isinstance(result, Exception):
