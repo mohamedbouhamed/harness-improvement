@@ -13,27 +13,27 @@ from . import llm
 from .benchmark import RepoTask
 from .contracts import GUIDANCE_HEADING, AgentLimits, estimate_tokens
 from .model import CallBudget
-from .tools import ToolExecutor, cap, parse_tool_calls, tool_help
+from .tools import EXAMPLE_REPLY, ToolExecutor, cap, parse_tool_calls, tool_help
 from .workspace import Workspace, candidate_hash, execution_files
 
-SYSTEM_TEMPLATE = """You are a careful software engineer repairing bugs in a small Python repository. You act only through tools.
+SYSTEM_TEMPLATE = """You are a careful software engineer repairing bugs in a small Python repository. You act only by requesting actions.
 
-Reply with exactly one JSON object and nothing else:
-{{"tool_calls": [{{"name": "<tool>", "args": {{...}}}}]}}
-Up to {per_turn} tool calls per reply run in order; their results come back in the next message.
+Reply with exactly one JSON object and nothing else, for example:
+{example}
+Up to {per_turn} actions per reply run in order; their results come back in the next message.
 
-Tools:
+Actions:
 {tools}
 
 Rules: only the writable files can be changed; tests cannot be modified; keep public interfaces unchanged.
-Limits: {model_calls} replies, {tool_calls} tool calls and {test_runs} public test runs per task.
-Call submit when you are done; if you run out of replies, your current files are submitted."""
+Limits: {model_calls} replies, {tool_calls} actions and {test_runs} public test runs per task.
+Request "submit" when you are done; if you run out of replies, your current files are submitted."""
 
 INFRA_OUTCOMES = ("api_error", "auth_error", "budget_exhausted")
 
 
 def system_prompt(limits: AgentLimits) -> str:
-    return SYSTEM_TEMPLATE.format(per_turn=limits.max_tool_calls_per_turn, tools=tool_help(),
+    return SYSTEM_TEMPLATE.format(example=EXAMPLE_REPLY, per_turn=limits.max_tool_calls_per_turn, tools=tool_help(),
                                   model_calls=limits.max_model_calls, tool_calls=limits.max_tool_calls,
                                   test_runs=limits.max_test_runs)
 
@@ -101,13 +101,12 @@ def run_episode(task: RepoTask, model, runner, budget: CallBudget, workspace_roo
         messages = messages + [{"role": "assistant", "content": resp.text}]
         if err:
             turn["parse_error"] = err
-            messages.append({"role": "user", "content": f"Invalid reply: {err}. Reply with one JSON object "
-                             "of the form {\"tool_calls\": [...]}."})
+            messages.append({"role": "user", "content": f"Invalid reply: {err}. Reply with one JSON object only."})
             continue
         results, submitted = [], False
         for call in calls:
             if tool_calls >= limits.max_tool_calls:
-                results.append(f"[{call['name']}] error: tool-call limit reached")
+                results.append(f"[{call['name']}] error: action limit reached")
                 break
             tool_calls += 1
             rec = {"name": call["name"], "args": {k: (v if len(str(v)) <= 200 else str(v)[:200] + "...")
@@ -136,7 +135,7 @@ def run_episode(task: RepoTask, model, runner, budget: CallBudget, workspace_roo
         if tool_calls >= limits.max_tool_calls:
             end_reason = "tool_call_limit"
             break
-        messages.append({"role": "user", "content": "Tool results:\n" + "\n\n".join(results)})
+        messages.append({"role": "user", "content": "Action results:\n" + "\n\n".join(results)})
 
     # ---- Episode over: no more model calls. Public-test fallback uses public outcomes only. ----
     final = ws.candidate()

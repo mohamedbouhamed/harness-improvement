@@ -1,8 +1,12 @@
-"""Text tool protocol for the repository agent (no agent framework).
+"""Text action protocol for the repository agent (no agent framework).
 
 The model replies with one JSON object, optionally inside a ```json fence:
-    {"tool_calls": [{"name": "read_file", "args": {"path": "pkg/a.py"}}, ...]}
-A single {"name": ..., "args": ...} object or a bare list of calls is also accepted.
+    {"actions": [{"action": "read_file", "path": "pkg/a.py"}, {"action": "run_public_tests"}]}
+Arguments sit next to "action". For robustness the parser also accepts "tool"/"name" instead of
+"action", arguments nested under "args"/"arguments", "tool_calls" instead of "actions", a single
+action object, or a bare list. The protocol avoids the words "tool_calls"/"function": Gemini's
+OpenAI-compatible endpoint treats such JSON as native function calling and returns empty replies
+(finish_reason MALFORMED_FUNCTION_CALL), as observed in pilot 1.
 """
 from __future__ import annotations
 
@@ -24,21 +28,34 @@ TOOL_SPECS = {
 }
 
 
+EXAMPLE_REPLY = '{"actions": [{"action": "read_file", "path": "pkg/module.py"}, {"action": "run_public_tests"}]}'
+_NAME_KEYS = ("action", "tool", "name")
+_LIST_KEYS = ("actions", "tool_calls", "calls")
+
+
 def tool_help() -> str:
     lines = []
     for name, (args, desc) in TOOL_SPECS.items():
-        sig = ", ".join(f'"{k}": {t.__name__}' for k, t in args.items())
-        lines.append(f"- {name} {{{sig}}}: {desc}")
+        fields = "".join(f', "{k}": <{t.__name__}>' for k, t in args.items())
+        lines.append(f'- {{"action": "{name}"{fields}}}: {desc}')
     return "\n".join(lines)
 
 
 _FENCE = re.compile(r"```(?:json)?\s*\n(.*?)```", re.DOTALL)
 
 
+def _call_args(c: dict) -> dict | None:
+    nested = c.get("args", c.get("arguments"))
+    if nested is not None and not isinstance(nested, dict):
+        return None
+    flat = {k: v for k, v in c.items() if k not in _NAME_KEYS + ("args", "arguments")}
+    return flat | (nested or {})
+
+
 def parse_tool_calls(text: str, max_per_turn: int) -> tuple[list[dict] | None, str | None]:
-    """Return (calls, error). Calls are validated for name and argument types."""
+    """Return (actions, error). Actions are validated for name and argument types."""
     if not text or not text.strip():
-        return None, "empty reply"
+        return None, f"empty reply; expected e.g. {EXAMPLE_REPLY}"
     candidates = [m.strip() for m in _FENCE.findall(text)] + [text.strip()]
     data, err = None, "no JSON object found"
     for chunk in candidates:
@@ -51,27 +68,32 @@ def parse_tool_calls(text: str, max_per_turn: int) -> tuple[list[dict] | None, s
         except json.JSONDecodeError as exc:
             err = f"invalid JSON: {exc.msg}"
     if data is None:
-        return None, err
-    if isinstance(data, dict) and "tool_calls" in data:
-        data = data["tool_calls"]
+        return None, f"{err}; expected e.g. {EXAMPLE_REPLY}"
+    if isinstance(data, dict):
+        key = next((k for k in _LIST_KEYS if k in data), None)
+        if key is not None:
+            data = data[key]
     calls = data if isinstance(data, list) else [data]
     if not calls:
-        return None, "no tool calls"
+        return None, f"no actions; expected e.g. {EXAMPLE_REPLY}"
     if len(calls) > max_per_turn:
-        return None, f"too many tool calls in one reply ({len(calls)} > {max_per_turn})"
+        return None, f"too many actions in one reply ({len(calls)} > {max_per_turn})"
     out = []
     for c in calls:
-        if not isinstance(c, dict) or c.get("name") not in TOOL_SPECS:
-            return None, f"unknown tool call {str(c)[:80]!r}; tools: {sorted(TOOL_SPECS)}"
-        args = c.get("args", c.get("arguments", {})) or {}
-        if not isinstance(args, dict):
-            return None, f"{c['name']}: args must be an object"
-        for key, typ in TOOL_SPECS[c["name"]][0].items():
+        name = next((c[k] for k in _NAME_KEYS if isinstance(c, dict) and k in c), None)
+        if name not in TOOL_SPECS:
+            return None, (f"unknown action {str(c)[:80]!r}; valid actions: {sorted(TOOL_SPECS)}; "
+                          f"expected e.g. {EXAMPLE_REPLY}")
+        args = _call_args(c)
+        if args is None:
+            return None, f"{name}: arguments must be fields of the action object, e.g. {EXAMPLE_REPLY}"
+        for key, typ in TOOL_SPECS[name][0].items():
             if not isinstance(args.get(key), typ):
-                return None, f"{c['name']}: argument {key!r} must be a {typ.__name__}"
-        out.append({"name": c["name"], "args": {k: args[k] for k in TOOL_SPECS[c["name"]][0]}})
+                return None, (f'{name}: missing or invalid "{key}" (a {typ.__name__}); write it next to '
+                              f'"action", e.g. {EXAMPLE_REPLY}')
+        out.append({"name": name, "args": {k: args[k] for k in TOOL_SPECS[name][0]}})
     if any(c["name"] == "submit" for c in out[:-1]):
-        return None, "submit must be the last tool call"
+        return None, "submit must be the last action"
     return out, None
 
 

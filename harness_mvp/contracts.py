@@ -10,7 +10,7 @@ import math
 import re
 from dataclasses import asdict, dataclass
 
-PROTOCOL_VERSION = "memory-v1"
+PROTOCOL_VERSION = "memory-v2"
 SPLITS = ("calibration", "memory_source", "development", "test")
 CONDITIONS = ("baseline", "static_guidance", "learned_memory")
 GUIDANCE_HEADING = "## Additional repair guidance"

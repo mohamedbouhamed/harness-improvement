@@ -83,6 +83,28 @@ def condition_rows(eps_by_cond: dict[str, list[dict]]) -> list[list]:
     ]
 
 
+PARSE_ERROR_WARN = 0.25  # share of agent turns whose reply could not be parsed
+
+
+def validity_warnings(eps: list[dict], memory_eps: list[dict], bank: dict | None) -> list[str]:
+    """Conditions under which the primary comparison carries no information about memory."""
+    out = []
+    if bank is not None and not bank.get("memories"):
+        out.append("the memory bank is **empty**, so learned_memory sent exactly the same prompt as baseline")
+    elif memory_eps and not any(e["guidance"]["memory_ids"] for e in memory_eps):
+        out.append("**no memory was retrieved** for any learned_memory episode, so its prompts equal baseline's")
+    turns = [t for e in eps for t in e["turns"]]
+    bad = sum(1 for t in turns if t["parse_error"])
+    if turns and bad / len(turns) > PARSE_ERROR_WARN:
+        kinds = sorted({t["parse_error"].split(";")[0][:60] for t in turns if t["parse_error"]})[:4]
+        out.append(f"{bad}/{len(turns)} agent turns ({100 * bad / len(turns):.0f}%) were unparseable replies "
+                   f"(e.g. {kinds}), so most episodes measure the action protocol, not repair ability")
+    if not out:
+        return []
+    return ["> **PRIMARY COMPARISON NOT INFORMATIVE.** " + "; ".join(out) + ". Differences between conditions "
+            "below reflect model nondeterminism or harness problems, not an effect of memory.", ""]
+
+
 def build_study_report(study_dir: Path) -> str:
     d = Path(study_dir)
     study = _read(d / "study.json") or {}
@@ -156,6 +178,7 @@ def build_study_report(study_dir: Path) -> str:
         by = {c: [e for e in eps if e["condition"] == c] for c in CONDITIONS}
         L += [_table(["Metric"] + list(CONDITIONS), condition_rows(by)), ""]
         b, m = by["baseline"], by["learned_memory"]
+        L += validity_warnings(eps, m, bank)
         L += [("**[SYNTHETIC]** " if study.get("synthetic") else "") +
               "**Primary comparison (predeclared): learned_memory vs baseline, final hidden-test success** — "
               f"{_k(m, lambda e: e['hidden_success'])} vs {_k(b, lambda e: e['hidden_success'])} "

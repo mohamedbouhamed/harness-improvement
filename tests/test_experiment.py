@@ -131,6 +131,14 @@ class FreezeAndIsolationTests(unittest.TestCase):
         finally:
             experiment.Stage.episode = original
 
+    def test_report_flags_uninformative_comparisons(self):
+        from harness_mvp.study_report import validity_warnings
+        ep = lambda mids, err=None: {"guidance": {"memory_ids": mids}, "turns": [{"parse_error": err}]}  # noqa: E731
+        self.assertTrue(validity_warnings([ep([])], [ep([])], {"memories": []}))
+        self.assertIn("no memory was retrieved", validity_warnings([ep([])], [ep([])], {"memories": [{}]})[0])
+        self.assertIn("unparseable", validity_warnings([ep(["m"], "empty reply")] * 3, [ep(["m"])], {"memories": [{}]})[0])
+        self.assertEqual(validity_warnings([ep(["m"])], [ep(["m"])], {"memories": [{}]}), [])
+
     def test_unique_dir_never_reuses_a_run(self):
         base = Path(tempfile.mkdtemp()) / "runs" / "study"
         self.assertEqual(unique_dir(base), base)

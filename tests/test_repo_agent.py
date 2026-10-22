@@ -21,7 +21,7 @@ GOOD_MARK, BAD_MARK = "# good", "# bad"
 
 
 def calls(*cs):
-    return json.dumps({"tool_calls": [{"name": n, "args": a} for n, a in cs]})
+    return json.dumps({"actions": [{"action": n, **a} for n, a in cs]})
 
 
 def write(mark):
@@ -122,6 +122,32 @@ class ToolParsingTests(unittest.TestCase):
         self.assertEqual(parse_tool_calls('```json\n{"name": "list_files"}\n```', 4)[0][0]["name"], "list_files")
         self.assertEqual(len(parse_tool_calls(calls(("list_files", {}), ("submit", {})), 4)[0]), 2)
         self.assertEqual(parse_tool_calls('[{"name": "submit", "args": {}}]', 4)[0][0]["name"], "submit")
+
+    def test_pilot1_reply_shapes_now_parse(self):
+        # Exact shape Gemini produced in pilot 1: arguments next to "name" inside "tool_calls".
+        text = ('{"tool_calls": [{"name": "list_files", "args": {}}, {"name": "read_file", "path": "ratelimit/window.py"}, '
+                '{"name": "read_file", "path": "ratelimit/limiter.py"}, {"name": "read_file", "path": "tests/test_public.py"}]}')
+        out, err = parse_tool_calls(text, 4)
+        self.assertIsNone(err)
+        self.assertEqual([c["args"] for c in out[1:]], [{"path": "ratelimit/window.py"}, {"path": "ratelimit/limiter.py"},
+                                                        {"path": "tests/test_public.py"}])
+
+    def test_canonical_and_nested_forms_are_equivalent(self):
+        flat = parse_tool_calls('{"actions": [{"action": "read_file", "path": "a.py"}]}', 4)[0]
+        nested = parse_tool_calls('{"actions": [{"tool": "read_file", "args": {"path": "a.py"}}]}', 4)[0]
+        self.assertEqual(flat, nested)
+        self.assertEqual(flat, [{"name": "read_file", "args": {"path": "a.py"}}])
+
+    def test_errors_show_the_expected_format(self):
+        for text in ("", '{"actions": [{"action": "read_file"}]}', "not json"):
+            self.assertIn('"actions"', parse_tool_calls(text, 4)[1])
+
+    def test_system_prompt_avoids_native_function_calling_words(self):
+        from harness_mvp.contracts import AgentLimits
+        from harness_mvp.repo_agent import system_prompt
+        text = system_prompt(AgentLimits()).lower()
+        self.assertNotIn("tool_calls", text)
+        self.assertNotIn("function", text)
 
     def test_rejected_forms(self):
         for text in ("no json here", '{"name": "rm_rf"}', '{"name": "read_file", "args": {}}',

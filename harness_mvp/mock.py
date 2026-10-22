@@ -17,7 +17,7 @@ from .model import APIError, ModelResponse
 
 
 def _calls(*calls) -> str:
-    return "```json\n" + json.dumps({"tool_calls": [{"name": n, "args": a} for n, a in calls]}) + "\n```"
+    return "```json\n" + json.dumps({"actions": [{"action": n, **a} for n, a in calls]}) + "\n```"
 
 
 class MockRepoModel:

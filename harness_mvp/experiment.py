@@ -153,7 +153,8 @@ class Stage:
                 path.write_text(content, encoding="utf-8")
         self.episodes.append(rec)
         mids = ",".join(rec["guidance"]["memory_ids"]) or "-"
-        print(f"  {eid:<52} calls={rec['model_calls']:<2} tools={rec['tool_calls']:<2} memories={mids:<26} "
+        print(f"  {eid:<52} calls={rec['model_calls']:<2} tools={rec['tool_calls']:<2} "
+              f"bad_replies={rec['parse_errors']:<2} edits={rec['edits']:<2} memories={mids:<26} "
               f"fallback={rec['fallback_activated']!s:<5} hidden_pass={rec['hidden_success']!s:<5} "
               f"[{rec['error_category']}]", flush=True)
         if rec["fatal"]:

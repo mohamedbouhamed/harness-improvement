@@ -1,8 +1,9 @@
 # Protocol: memory-guided repository repair
 
-Protocol version: `memory-v1`. This document is written before the experiment is run. Changing
-anything listed under [Frozen before held-out evaluation](#frozen-before-held-out-evaluation)
-requires a new protocol version and a new held-out benchmark version.
+Protocol version: `memory-v2`. The protocol was first written before any experiment ran
+(`memory-v1`); every later change is listed in the [change log](#change-log). Changing anything
+listed under [Frozen before held-out evaluation](#frozen-before-held-out-evaluation) requires a
+new protocol version and a decision about the held-out benchmark, recorded in the change log.
 
 ## Research question
 
@@ -181,3 +182,44 @@ all held-out (task, repetition) pairs**, reported as raw counts per condition an
 All tasks are independently authored, each is its own family, and each repository has 2–3
 interacting source files with cross-function bugs. The dataset will be expanded only after the
 complete pipeline works.
+
+## Change log
+
+### memory-v2 (after live pilot 1, `runs/study-pilot`)
+
+Pilot 1 (`memory-v1`, `gemini-3.5-flash-lite`, 2026-10-22) was **invalid because of harness
+defects**, not because of anything the conditions did:
+
+- **Rejected replies.** The agent's replies were rejected when arguments sat next to the tool
+  name instead of under `"args"`. The error message did not show the expected form.
+- **Empty replies.** The protocol used the key `"tool_calls"`. Gemini's OpenAI-compatible
+  endpoint answered many turns with empty content (`finish_reason`
+  `function_call_filter: MALFORMED_FUNCTION_CALL`).
+- **Consequences:**
+  - 86 of 143 agent turns were unparseable;
+  - both memory-source episodes ended without edits, so the memory bank was empty;
+  - `learned_memory` therefore sent the same prompts as `baseline`.
+
+Changes in memory-v2. Only the action format and reporting changed; no condition, limit,
+retrieval setting or task changed:
+
+- **New format.** Replies use `{"actions": [{"action": "read_file", "path": "..."}]}`. Arguments
+  sit next to `"action"`.
+- **Tolerant parser.** It also accepts `tool`/`name`, nested `args`/`arguments`, `tool_calls`, a
+  single action object or a bare list.
+- **Clearer prompt and errors.** The system prompt avoids "tool_calls" and "function". Error
+  messages show an example reply.
+- **Report warnings.** The report marks the primary comparison *not informative* in three cases:
+  - the memory bank is empty;
+  - no memory was retrieved for any `learned_memory` episode;
+  - more than 25% of agent turns are unparseable.
+
+The fix came from the failure *mode* (reply format), which was identical on the memory-source and
+held-out tasks. No setting was tuned on held-out *outcomes*.
+
+**Open decision: what to do with the held-out tasks.**
+
+- **Reuse them.** Keep the 3 test tasks under memory-v2 and disclose pilot 1 (its data stays in
+  `runs/study-pilot`).
+- **Replace them.** Write new held-out tasks.
+
