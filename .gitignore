@@ -1,0 +1,8 @@
+.env
+runs/
+__pycache__/
+*.pyc
+.venv/
+# codemap: generated map; keep walkthroughs.json (AI explanations) and config.json
+.codemap/index.html
+.codemap/graph.json

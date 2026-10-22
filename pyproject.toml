@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harness-mvp"
+version = "0.1.0"
+description = "Black-box selection of a code-repair agent's harness configuration (exploratory MVP)"
+requires-python = ">=3.11"
+dependencies = []  # standard library only; Docker is required for live runs
+
+[tool.setuptools]
+packages = ["harness_mvp"]

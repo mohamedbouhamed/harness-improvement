@@ -1,0 +1,2 @@
+# No third-party runtime dependencies: the MVP uses only the Python 3.11+ standard library.
+# External requirement for live runs: Docker (daemon running).
