@@ -6,7 +6,8 @@ import unittest
 from pathlib import Path
 
 from harness_mvp.contracts import CONDITIONS
-from harness_mvp.experiment import Study, StudyError, plan, read_json, read_jsonl
+from harness_mvp import experiment
+from harness_mvp.experiment import Study, StudyError, plan, read_json, read_jsonl, unique_dir
 from harness_mvp.benchmark import load_benchmark
 from harness_mvp.contracts import AgentLimits
 from harness_mvp.study_report import build_study_report
@@ -109,6 +110,34 @@ class FreezeAndIsolationTests(unittest.TestCase):
         with self.assertRaises(Exception):
             study.evaluate("test", None)
         self.assertFalse((study.dir / "eval-test").exists())
+
+    def test_bank_changed_during_heldout_evaluation_is_detected(self):
+        study = new_study()
+        study.build_memory(reps=1)
+        study.freeze(test_reps=1)
+        original = experiment.Stage.episode
+        path = study.dir / "memory_bank.json"
+
+        def tamper_then_run(stage, *a, **kw):
+            bank = json.loads(path.read_text())
+            bank["memories"][0]["lesson"] += " (rewritten mid-run)"
+            path.write_text(json.dumps(bank))
+            return original(stage, *a, **kw)
+
+        experiment.Stage.episode = tamper_then_run
+        try:
+            with self.assertRaises(Exception):
+                study.evaluate("test", None)
+        finally:
+            experiment.Stage.episode = original
+
+    def test_unique_dir_never_reuses_a_run(self):
+        base = Path(tempfile.mkdtemp()) / "runs" / "study"
+        self.assertEqual(unique_dir(base), base)
+        base.mkdir(parents=True)
+        (base / "x").write_text("keep")
+        self.assertEqual(unique_dir(base).name, "study-2")
+        self.assertEqual((base / "x").read_text(), "keep")
 
     def test_stages_and_studies_are_never_overwritten(self):
         study = new_study()
