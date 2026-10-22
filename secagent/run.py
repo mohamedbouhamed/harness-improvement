@@ -14,7 +14,7 @@ from .agent import DetectLimits, read_instructions, run_episode, system_prompt, 
 from .tasks import VARIANTS, SecTask
 
 CONTROLS = Path(__file__).resolve().parent / "controls"
-CONDITIONS = ("none", "checklist", "lessons")
+CONDITIONS = ("none", "checklist", "lessons", "memory")
 
 
 def guidance_for(condition: str) -> str:
@@ -22,6 +22,8 @@ def guidance_for(condition: str) -> str:
         return ""
     if condition in ("checklist", "lessons"):
         return (CONTROLS / f"{condition}.md").read_text(encoding="utf-8").strip()
+    if condition == "memory":  # the Phase 2 editable surface
+        return (CONTROLS.parent.parent / "harness" / "memory.md").read_text(encoding="utf-8").strip()
     raise ValueError(f"unknown condition {condition!r}")
 
 

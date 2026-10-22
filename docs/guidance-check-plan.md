@@ -68,3 +68,22 @@ python -m secagent run --live --split calibration \
   --conditions checklist,lessons --reps 1 --temperature 0 --seed 4 \
   --cap-eur 3.90 --usd-to-eur 1.0 --max-model-calls 140 --min-interval 1
 ```
+
+## Result (run `calibration-live-20261022T212341Z-d31dba`, 16/16 episodes, all returned `gemini-3.5-flash-lite`)
+
+| Pair | Witness | none (reference, T = 0) | checklist | lessons |
+|---|---|---|---|---|
+| cal_docshare (path traversal) | exploit | missed 3/3, twin clean | missed, twin clean | missed, twin clean |
+| cal_miniwiki (XSS) | exploit | missed 2/2, twin clean | missed, twin clean | missed, twin clean |
+| cal_teamnotes (SQL injection) | reachability | found 2/2, twin clean | found, twin clean | found, twin clean |
+| cal_mediakit (command injection) | reachability | found 2/2, twin clean | found, twin clean | found, twin clean |
+
+No outcome changed: 0 of 8 programs per condition differ from the reference. No false alarms and no
+non-submissions. Mean per episode: checklist 7,666 in / 158 out tokens, 3.75 calls, 10.3 s;
+lessons 9,155 / 165, 3.88 calls, 8.6 s. Cost of the run: reported €0.0355, upper bound €0.665.
+
+Observation from the traces: in every missed episode the agent read the file with the flaw
+(storage.py, render.py) and submitted an empty list in the next reply, with no written analysis
+(13–16 output tokens). Even lessons that describe the flaw almost explicitly did not change this.
+This says only that these two texts did not move these four pairs on this model; it does not show
+that memory cannot help.

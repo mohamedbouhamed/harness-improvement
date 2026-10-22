@@ -148,5 +148,23 @@ class Cost(unittest.TestCase):
         self.assertEqual([(e["status"], e["cost_eur"]) for e in m.ledger.entries()], [("http_429", 0.0)])
 
 
+class Proposal(unittest.TestCase):
+    def test_validation_rejects_identifiers_and_wrong_targets(self):
+        from secagent.propose import parse_proposal, validate_proposal
+        p, err = parse_proposal('{"pattern": "p", "target": "harness/memory.md", "new_content": "Check _resolve in storage", "rationale": "r"}')
+        self.assertIsNone(err)
+        self.assertTrue(any("identifiers" in x for x in validate_proposal(p, [DOC])))
+        self.assertTrue(validate_proposal(p | {"target": "secagent/agent.py", "new_content": "x"}, [DOC]))
+        self.assertEqual(validate_proposal(p | {"new_content": "Check containment by whole path components."}, [DOC]), [])
+
+    def test_mined_patterns_hide_nothing_from_eval_but_include_train_answer(self):
+        from secagent.propose import mine_patterns
+        rec, _ = run_episode(DOC, "vulnerable", MockDetector(list(TASKS.values()), detect=False), CallBudget(10),
+                             episode_id="e", condition="none", repetition=1, instructions="i", guidance="")
+        pat = mine_patterns([rec], TASKS)
+        self.assertEqual(pat[0]["outcome"], "missed the planted weakness")
+        self.assertEqual(pat[0]["planted_weakness"]["file"], "docshare/storage.py")
+
+
 if __name__ == "__main__":
     unittest.main()
