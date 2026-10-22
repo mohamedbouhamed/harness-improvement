@@ -211,6 +211,10 @@ class Study:
             self.dir.mkdir(parents=True, exist_ok=True)
         elif not (self.dir / "study.json").exists():
             raise StudyError(f"{self.dir} is not a study (missing study.json); create it with build-memory or pipeline")
+        else:
+            mode = read_json(self.dir / "study.json")["mode"]
+            if mode != ("mock" if args.mock else "live"):
+                raise StudyError(f"{self.dir} is a {mode} study; pass --{mode}")
         self.log = None if args.mock else (lambda m: print(f"      {m}", flush=True))
         self.backends = Backends(args.mock, self.tasks, args.runner, self.dir / "_exec", self.limits)
         info = self.describe()
@@ -455,7 +459,9 @@ def _print_plan(p: dict, api_retries: int) -> None:
 
 
 def _add_common(p) -> None:
-    p.add_argument("--mock", action="store_true", help="synthetic mock agent and extractor (no API calls)")
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--mock", action="store_true", help="synthetic mock agent and extractor (no API calls)")
+    mode.add_argument("--live", action="store_true", help="confirm live mode: makes PAID model calls")
     p.add_argument("--runner", choices=["auto", "docker", "local-trusted"], default="auto")
     p.add_argument("--max-model-calls", type=int, default=None,
                    help="global request cap incl. API re-sends, checked before every request (default: planned maximum)")

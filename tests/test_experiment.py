@@ -13,7 +13,7 @@ from harness_mvp.study_report import build_study_report
 
 
 def args(**kw):
-    base = dict(mock=True, runner="local-trusted", max_model_calls=None, api_retries=0, retry_wait=10.0,
+    base = dict(mock=True, live=False, runner="local-trusted", max_model_calls=None, api_retries=0, retry_wait=10.0,
                 min_interval=0.0, omit_prompts=False, benchmark=None)
     return argparse.Namespace(**(base | kw))
 
@@ -126,6 +126,12 @@ class FreezeAndIsolationTests(unittest.TestCase):
         study.args.mock = False  # simulate a live evaluation reading a synthetic bank
         with self.assertRaises(StudyError):
             study.bank()
+
+    def test_mode_must_match_the_study(self):
+        study = new_study()
+        study.build_memory(reps=1)
+        with self.assertRaises(StudyError):
+            Study(args(mock=False, live=True), study.dir, create=False)
 
     def test_global_budget_stops_the_run(self):
         study = new_study(max_model_calls=4)
