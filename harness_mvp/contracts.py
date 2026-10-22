@@ -10,7 +10,7 @@ import math
 import re
 from dataclasses import asdict, dataclass
 
-PROTOCOL_VERSION = "memory-v3"
+PROTOCOL_VERSION = "memory-v4"
 SPLITS = ("calibration", "memory_source", "development", "test")
 CONDITIONS = ("baseline", "static_guidance", "learned_memory")
 GUIDANCE_HEADING = "## Additional repair guidance"
@@ -41,6 +41,7 @@ class AgentLimits:
     write_chars: int = 20000
     search_max_matches: int = 30
     exec_timeout_s: int = 10
+    initial_context_chars: int = 12000  # writable files + public tests shown in the first message
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -160,6 +160,29 @@ class ToolParsingTests(unittest.TestCase):
         bad, _ = native_calls_as_actions([{"function": {"name": "read_file", "arguments": "{not json"}}])
         self.assertIsNone(parse_tool_calls(bad, 4)[0])  # reported to the model as an invalid action
 
+class FirstMessageTests(unittest.TestCase):
+    def test_writable_files_and_public_tests_are_shown_hidden_never(self):
+        from harness_mvp.repo_agent import first_user_message
+        for task in TASKS.values():
+            msg = first_user_message(task, "")
+            repo = task.repo_files()
+            for rel in (*task.allowed_files, task.public_tests):
+                self.assertIn(repo[rel].strip(), msg)
+            self.assertNotIn(task.hidden_test_source().strip(), msg)
+            for rel, content in task.solution_files().items():
+                if content != repo[rel]:
+                    self.assertNotIn(content.strip(), msg)
+
+    def test_size_cap_omits_whole_files(self):
+        from harness_mvp.contracts import AgentLimits
+        from harness_mvp.repo_agent import first_user_message, initial_files
+        limits = AgentLimits(initial_context_chars=10)
+        shown, omitted = initial_files(TASK, limits.initial_context_chars)
+        self.assertEqual(shown, [])
+        self.assertEqual(omitted, [*TASK.allowed_files, TASK.public_tests])
+        self.assertIn("Use read_file", first_user_message(TASK, "", limits))
+
+
 class EpisodeTests(unittest.TestCase):
     def test_every_agent_turn_declares_the_functions(self):
         seen = []

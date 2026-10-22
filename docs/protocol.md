@@ -1,6 +1,6 @@
 # Protocol: memory-guided repository repair
 
-Protocol version: `memory-v3`. The protocol was first written before any experiment ran
+Protocol version: `memory-v4`. The protocol was first written before any experiment ran
 (`memory-v1`); every later change is listed in the [change log](#change-log). Changing anything
 listed under [Frozen before held-out evaluation](#frozen-before-held-out-evaluation) requires a
 new protocol version and a decision about the held-out benchmark, recorded in the change log.
@@ -81,6 +81,11 @@ The following are identical for all three conditions:
 - **Fresh state.** Each (task, condition, repetition) gets a fresh workspace and a fresh
   conversation. Nothing is shared across conditions, including the first candidate: guidance
   changes the first prompt, so it may act from the first model call.
+- **First message.** It contains the task, the writable-file list, the guidance block (if any)
+  and the pristine contents of the writable files and the public test file, up to
+  `initial_context_chars` (12,000). A file that does not fit is omitted whole and must be read
+  with `read_file`. The message is identical across conditions except for the guidance block.
+  Hidden tests and reference solutions are never included.
 - **Tools:**
   - `list_files`, `read_file` and `search` work inside the episode workspace only;
   - `write_file` and `replace_in_file` work on declared `allowed_files` only;
@@ -184,6 +189,37 @@ interacting source files with cross-function bugs. The dataset will be expanded 
 complete pipeline works.
 
 ## Change log
+
+### memory-v4 (after the first memory-v3 build-memory attempt, `runs/study-pilot3`)
+
+memory-v3 fixed the empty replies: every turn returned `finish=tool_calls` with no unparseable
+reply. With native function calls, though, Gemini requested **one action per turn**. In the
+`ms_booking` episode it spent all 8 model calls on these actions, in order:
+
+1. list the files;
+2. read `intervals.py`;
+3. read `calendar.py`;
+4. read the public tests;
+5. run the tests;
+6. run them again;
+7. read `intervals.py` again;
+8. read `calendar.py` again.
+
+It never edited anything. The failure measures reading overhead, not repair or the effect of
+memory.
+
+Changes:
+
+- **Files inlined.** The first message now includes the pristine writable files and public tests,
+  up to `initial_context_chars` = 12,000 characters. That is everything the agent could already
+  read with `read_file`, so no new information is exposed. In this benchmark every first message
+  is about 700–1,100 estimated tokens.
+- **Several actions per reply.** The system prompt states that several actions, or several
+  function calls, can go in one reply.
+
+**Trade-off.** Repository exploration is no longer measured for files that fit. Larger
+repositories fall back to reading through tools. Conditions, limits, retrieval, tasks and scoring
+are unchanged. The held-out decision below still applies.
 
 ### memory-v3 (after the first memory-v2 build-memory attempt, `runs/study-pilot2`)
 

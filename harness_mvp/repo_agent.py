@@ -20,7 +20,7 @@ SYSTEM_TEMPLATE = """You are a careful software engineer repairing bugs in a sma
 
 Request actions by calling the provided functions, or by replying with exactly one JSON object and nothing else, for example:
 {example}
-Up to {per_turn} actions per reply run in order; their results come back in the next message.
+Up to {per_turn} actions per reply run in order (several function calls at once, or several entries in "actions"); their results come back in the next message.
 
 Actions:
 {tools}
@@ -38,14 +38,40 @@ def system_prompt(limits: AgentLimits) -> str:
                                   test_runs=limits.max_test_runs)
 
 
-def first_user_message(task: RepoTask, guidance_text: str) -> str:
+def initial_files(task: RepoTask, limit_chars: int) -> tuple[list[tuple[str, str]], list[str]]:
+    """Writable files, then the public tests, from the PRISTINE repo, while they fit `limit_chars`.
+
+    Returns (shown [(path, content)], omitted paths). Only files the agent may already read are
+    eligible; hidden tests never are. A file that does not fit is omitted whole (never truncated).
+    """
+    repo = task.repo_files()
+    shown, omitted, used = [], [], 0
+    for rel in list(task.allowed_files) + [task.public_tests]:
+        content = repo[rel]
+        if used + len(content) <= limit_chars:
+            shown.append((rel, content))
+            used += len(content)
+        else:
+            omitted.append(rel)
+    return shown, omitted
+
+
+def first_user_message(task: RepoTask, guidance_text: str, limits: AgentLimits = AgentLimits()) -> str:
     view = task.public_view()
     parts = [f"# Task: {view['title']}", view["statement"], "",
              "Writable files: " + ", ".join(view["allowed_files"]),
              f"Public tests: {view['public_tests']}"]
     if guidance_text:
         parts += ["", GUIDANCE_HEADING, guidance_text]
-    parts += ["", "Start by inspecting the repository."]
+    shown, omitted = initial_files(task, limits.initial_context_chars)
+    if shown:
+        parts += ["", "## Current files (already read for you)"]
+        for rel, content in shown:
+            parts += [f"### {rel}", "```python", content.rstrip("\n"), "```"]
+    if omitted:
+        parts += ["", "Not shown (too large): " + ", ".join(omitted) + ". Use read_file if you need them."]
+    parts += ["", "These files are already shown, so you do not need to read them again: edit the writable "
+              "files, run the public tests, and submit. Several actions can go in one reply."]
     return "\n".join(parts)
 
 
@@ -70,7 +96,7 @@ def run_episode(task: RepoTask, model, runner, budget: CallBudget, workspace_roo
     original = ws.candidate()
     guidance_text = guidance.get("text", "")
     messages = [{"role": "system", "content": system_prompt(limits)},
-                {"role": "user", "content": first_user_message(task, guidance_text)}]
+                {"role": "user", "content": first_user_message(task, guidance_text, limits)}]
     turns, transcript, snapshots, snapshot_files = [], [], [], {}
     tool_calls = test_runs = 0
     end_reason, fatal = "model_call_limit", None
