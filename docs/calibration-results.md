@@ -28,7 +28,7 @@ folders: `runs/sec/calibration-live-*` (git-ignored); every request is in `runs/
 
 The budget-truncated episode is excluded from the table (it is a `budget_exhausted` no-submission).
 
-Per task, the outcome was **identical in every repetition and at both temperatures**:
+Per task, the outcome was **identical in every repetition observed** (2–5 runs per program, at both temperatures):
 
 | Task | Class | Witness | Vulnerable | Twin |
 |---|---|---|---|---|
@@ -49,9 +49,13 @@ pickle, eval); every missed one is incomplete validation or a missing check.
 ## Interpretation
 
 - Difficulty: 47% recall for `none` is inside the 30–70% target; no adjustment round needed.
-- **Noise is task-level, not run-level.** Repetitions never changed an outcome, at T = 0 or 0.7.
-  With 8 pairs, the uncertainty comes from which tasks are in the benchmark, not from sampling.
-  More repetitions per task buy almost nothing; more pairs do.
+- **Outcomes were stable in the repetitions observed** (2–5 runs per program, T = 0 and 0.7), so
+  in this small sample the variation between tasks was much larger than the variation between
+  runs. That does not show that repetitions add nothing: a few runs cannot rule out rarer
+  run-to-run flips, longer or different tasks may behave differently, and other uncertainty
+  sources (task selection, labels, endpoint or model changes over time) remain. With 8 pairs,
+  adding pairs is the more informative next step, and repetitions remain useful to check
+  stability. Best-of-N sampling was not tested; its value is unknown.
 - `cal_prefsync` twin: the fix moves `pickle.loads` after the signature check. Flagging signed
   pickle is a defensible reviewer opinion (a leaked key gives code execution), so this twin is
   ambiguous rather than clean. Proposed: replace pickle with JSON in that twin (documented as the
@@ -65,3 +69,9 @@ pickle, eval); every missed one is incomplete validation or a missing check.
 - The cap is therefore enforced on an upper bound (every request billed at its full 4,096-token
   output allowance). Final ledger: **reported €0.198, upper bound €2.988** (cap €3, at $1 = €1).
   Provider billing has not been reconciled yet.
+
+## Correction (2026-10-23)
+
+An earlier version of the interpretation said that noise was "task-level, not run-level" and that
+"more repetitions per task buy almost nothing". That overstated what 2–5 stable repetitions can
+show; the paragraph above replaces it. The data are unchanged.
